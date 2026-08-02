@@ -2,6 +2,7 @@ package com.icysnex.ghosttap.core.analytics;
 
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.wtap.AutoWTap;
 import com.icysnex.ghosttap.utils.FileIO;
 import com.icysnex.ghosttap.utils.Notice;
 
@@ -29,6 +30,11 @@ public class Analytics {
     public static void clearJumpReset() {
         JumpResetTracker.INSTANCE.clear();
         Notice.show("Cleared Jump Reset analytics data.");
+    }
+
+    public static void clearWTap() {
+        WTapTracker.INSTANCE.clear();
+        Notice.show("Cleared W-Tap analytics data.");
     }
 
     public static void export() {
@@ -99,6 +105,51 @@ public class Analytics {
                 Notice.show("Exported Jump Reset: " + fileName);
             else
                 Notice.show("Jump Reset export failed (see console).");
+        });
+    }
+
+    public static void exportWTap() {
+        WTapTracker tracker = WTapTracker.INSTANCE;
+        if (tracker.size() <= 0) {
+            Notice.show("No W-Tap analytics data. Enable tracking and attack first.");
+            return;
+        }
+
+        String fileName = "analytics_w_tap_" + System.currentTimeMillis() + ".csv";
+        List<WTapData> snapshot = tracker.copy();
+        AutoWTap wTap = AutoWTap.INSTANCE;
+
+        Notice.show("Exporting W-Tap analytics...");
+        FileIO.saveAsync(fileName, writer -> {
+            writer.println("# --- START METADATA (W-TAP) ---");
+            writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", wTap.chance * 100);
+            writer.printf(Locale.ROOT, "# Delay: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
+                    wTap.delayMeanMs, wTap.delayStandardDeviationMs,
+                    wTap.delayMinMs, wTap.delayMaxMs);
+            writer.printf(Locale.ROOT, "# Release: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
+                    wTap.releaseMeanMs, wTap.releaseStandardDeviationMs,
+                    wTap.releaseMinMs, wTap.releaseMaxMs);
+            writer.printf("# Held items: weapons=%s, tools=%s, blocks=%s, other=%s%n",
+                    wTap.weapons, wTap.tools, wTap.blocks, wTap.other);
+            writer.printf("# Rules: playersOnly=%s%n", wTap.playersOnly);
+            writer.println("# Negative timing values mean that stage was not reached or observed before export.");
+            writer.println("# --- END METADATA ---");
+
+            writer.println("Timestamp,Outcome,DecisionUS,ScheduledDelayMS,ActualReleaseDelayMS,TargetReleaseMS,ActualReleaseMS,Sprinting,MovingForward,PhysicalWDown,PlayerTarget,HeldItem");
+            for (WTapData d : snapshot) {
+                writer.printf(Locale.ROOT,
+                        "%d,%s,%.3f,%d,%.4f,%d,%.4f,%s,%s,%s,%s,%s%n",
+                        d.timestamp, d.outcome.name(), nanosToUs(d.decisionNanos),
+                        d.scheduledDelayMs, nanosToMs(d.releaseDelayNanos),
+                        d.targetReleaseMs, nanosToMs(d.actualReleaseNanos),
+                        d.sprinting, d.movingForward, d.physicalWDown,
+                        d.playerTarget, d.heldItem.name());
+            }
+        }, success -> {
+            if (success)
+                Notice.show("Exported W-Tap: " + fileName);
+            else
+                Notice.show("W-Tap export failed (see console).");
         });
     }
 

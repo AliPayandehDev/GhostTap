@@ -7,6 +7,7 @@ import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.Gates;
 import com.icysnex.ghosttap.core.input.InputMouse;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.wtap.AutoWTap;
 import com.icysnex.ghosttap.gui.GuiGhostTap;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -21,6 +22,7 @@ public class GhostTapKeybindListener {
     private final ButtonState right = new ButtonState();
     private boolean wasOpenDown = false;
     private boolean wasJumpResetDown = false;
+    private boolean wasWTapDown = false;
 
     
     @SubscribeEvent
@@ -43,6 +45,11 @@ public class GhostTapKeybindListener {
         // Track the physical state while a screen is open so closing the screen
         // with the key still held cannot produce a second toggle.
         wasJumpResetDown = isDown(ConfigHandler.toggleJumpResetKey);
+
+        boolean wTapDown = !screenOpen && isDown(ConfigHandler.toggleWTapKey);
+        if (wTapDown && !wasWTapDown)
+            AutoWTap.INSTANCE.toggle();
+        wasWTapDown = isDown(ConfigHandler.toggleWTapKey);
 
         process(Clicker.LEFT, ConfigHandler.toggleLeftKey, ConfigHandler.leftMode, InputMouse.BUTTON_LEFT, left, screenOpen, ownGui);
         process(Clicker.RIGHT, ConfigHandler.toggleRightKey, ConfigHandler.rightMode, InputMouse.BUTTON_RIGHT, right, screenOpen, ownGui);

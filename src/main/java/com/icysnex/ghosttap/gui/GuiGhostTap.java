@@ -6,8 +6,10 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.analytics.Analytics;
 import com.icysnex.ghosttap.core.analytics.JumpResetTracker;
 import com.icysnex.ghosttap.core.analytics.Tracker;
+import com.icysnex.ghosttap.core.analytics.WTapTracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.wtap.AutoWTap;
 import com.icysnex.ghosttap.utils.Notice;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -27,7 +29,7 @@ import java.util.function.DoubleSupplier;
 // layout.
 public class GuiGhostTap extends GuiScreen {
 
-    private static final int PANEL_W = 300;
+    private static final int PANEL_W = 360;
     private static final int PANEL_H = 210;
     private static final int TITLE_H = 18;
     private static final int TAB_H = 16;
@@ -101,6 +103,7 @@ public class GuiGhostTap extends GuiScreen {
         tabs.add(buildClickerTab(Clicker.LEFT));
         tabs.add(buildClickerTab(Clicker.RIGHT));
         tabs.add(buildJumpResetTab());
+        tabs.add(buildWTapTab());
         tabs.add(new Tab("HUD", single(buildHudRows())));
 
         layoutContent();
@@ -140,6 +143,14 @@ public class GuiGhostTap extends GuiScreen {
         subs.add(new SubTab("Filters", buildJumpResetConfigRows()));
         subs.add(new SubTab("Analytics", buildJumpResetAnalyticsRows()));
         return new Tab("Jump Reset", subs);
+    }
+
+    private Tab buildWTapTab() {
+        List<SubTab> subs = new ArrayList<>();
+        subs.add(new SubTab("Timing", buildWTapRows()));
+        subs.add(new SubTab("Filters", buildWTapConfigRows()));
+        subs.add(new SubTab("Analytics", buildWTapAnalyticsRows()));
+        return new Tab("W-Tap", subs);
     }
 
     private List<Object> buildCpsRows(Clicker c) {
@@ -314,6 +325,23 @@ public class GuiGhostTap extends GuiScreen {
                 }));
     }
 
+    private GuiButtonRow wTapConfigRow() {
+        AutoWTap wTap = AutoWTap.INSTANCE;
+        return new GuiButtonRow("Config",
+                button("Reset", "Restore W-Tap settings to their defaults.",
+                        () -> { wTap.reset(); Notice.show("Reset W-Tap settings to defaults."); }),
+                button("Export", "Copy W-Tap settings to the clipboard.", () -> {
+                    setClipboardString(wTap.export());
+                    Notice.show("Copied W-Tap settings to clipboard.");
+                }),
+                button("Import", "Load W-Tap settings from the clipboard.", () -> {
+                    if (wTap.importFrom(getClipboardString()))
+                        Notice.show("Loaded W-Tap settings from clipboard.");
+                    else
+                        Notice.show("Clipboard has no valid W-Tap config.");
+                }));
+    }
+
     private List<Object> buildGeneralRows() {
         List<Object> r = new ArrayList<>();
 
@@ -359,6 +387,13 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.toggleJumpResetKey, v -> ConfigHandler.toggleJumpResetKey = v));
         r.add(jumpResetConfigRow());
 
+        r.add("W-Tap");
+        r.add(toggle("Enabled", "Turn W-Tap on or off.",
+                () -> AutoWTap.INSTANCE.isEnabled(), v -> AutoWTap.INSTANCE.setEnabled(v)));
+        r.add(keybind("Key", "Toggle W-Tap on or off.",
+                () -> ConfigHandler.toggleWTapKey, v -> ConfigHandler.toggleWTapKey = v));
+        r.add(wTapConfigRow());
+
         r.add("HUD");
         r.add(toggle("Enabled", "Show the on-screen HUD.",
                 () -> ConfigHandler.hudEnabled, v -> ConfigHandler.hudEnabled = v));
@@ -369,7 +404,7 @@ public class GuiGhostTap extends GuiScreen {
                 button("Import", "Load HUD settings from the clipboard.", this::importHud)));
 
         r.add("Analytics");
-        r.add(toggle("Enabled", "Record click and Jump Reset data for stats and export.",
+        r.add(toggle("Enabled", "Record click, Jump Reset and W-Tap data for stats and export.",
                 () -> Tracker.enabled, v -> Tracker.enabled = v));
 
         r.add("Server");
@@ -468,6 +503,90 @@ public class GuiGhostTap extends GuiScreen {
         return r;
     }
 
+    private List<Object> buildWTapRows() {
+        List<Object> r = new ArrayList<>();
+        AutoWTap wTap = AutoWTap.INSTANCE;
+
+        r.add("Action");
+        r.add(slider("Chance", 0, 1, 1, true,
+                "Chance that an eligible attack will trigger a W-Tap.",
+                () -> wTap.chance, v -> wTap.chance = v));
+        r.add("Delay (ms)");
+        r.add(slider("Mean", 0, 250, 0, false,
+                "Average reaction delay between the attack and releasing W.",
+                () -> wTap.delayMeanMs, v -> {
+                    wTap.delayMeanMs = v;
+                    if (v < wTap.delayMinMs) wTap.delayMinMs = v;
+                    if (v > wTap.delayMaxMs) wTap.delayMaxMs = v;
+                }));
+        r.add(slider("Std deviation", 0, 100, 0, false,
+                "How much the reaction delay randomly varies around the mean.",
+                () -> wTap.delayStandardDeviationMs, v -> wTap.delayStandardDeviationMs = v));
+        r.add(slider("Min", 0, 250, 0, false,
+                "Shortest allowed reaction delay.",
+                () -> wTap.delayMinMs, v -> {
+                    wTap.delayMinMs = v;
+                    if (wTap.delayMaxMs < v) wTap.delayMaxMs = v;
+                    if (wTap.delayMeanMs < v) wTap.delayMeanMs = v;
+                }));
+        r.add(slider("Max", 0, 250, 0, false,
+                "Longest allowed reaction delay.",
+                () -> wTap.delayMaxMs, v -> {
+                    wTap.delayMaxMs = v;
+                    if (wTap.delayMinMs > v) wTap.delayMinMs = v;
+                    if (wTap.delayMeanMs > v) wTap.delayMeanMs = v;
+                }));
+
+        r.add("Release (ms)");
+        r.add(slider("Mean", 0, 500, 0, false,
+                "Average time W remains released before forward movement resumes.",
+                () -> wTap.releaseMeanMs, v -> {
+                    wTap.releaseMeanMs = v;
+                    if (v < wTap.releaseMinMs) wTap.releaseMinMs = v;
+                    if (v > wTap.releaseMaxMs) wTap.releaseMaxMs = v;
+                }));
+        r.add(slider("Std deviation", 0, 150, 0, false,
+                "How much the W-release time randomly varies around the mean.",
+                () -> wTap.releaseStandardDeviationMs, v -> wTap.releaseStandardDeviationMs = v));
+        r.add(slider("Min", 0, 500, 0, false,
+                "Shortest allowed W-release time.",
+                () -> wTap.releaseMinMs, v -> {
+                    wTap.releaseMinMs = v;
+                    if (wTap.releaseMaxMs < v) wTap.releaseMaxMs = v;
+                    if (wTap.releaseMeanMs < v) wTap.releaseMeanMs = v;
+                }));
+        r.add(slider("Max", 0, 500, 0, false,
+                "Longest allowed W-release time.",
+                () -> wTap.releaseMaxMs, v -> {
+                    wTap.releaseMaxMs = v;
+                    if (wTap.releaseMinMs > v) wTap.releaseMinMs = v;
+                    if (wTap.releaseMeanMs > v) wTap.releaseMeanMs = v;
+                }));
+
+        return r;
+    }
+
+    private List<Object> buildWTapConfigRows() {
+        List<Object> r = new ArrayList<>();
+        AutoWTap wTap = AutoWTap.INSTANCE;
+
+        r.add("Held item");
+        r.add(toggle("Weapons", "Allow while holding a sword or axe.",
+                () -> wTap.weapons, v -> wTap.weapons = v));
+        r.add(toggle("Tools", "Allow while holding a pickaxe, shovel, hoe or shears.",
+                () -> wTap.tools, v -> wTap.tools = v));
+        r.add(toggle("Blocks", "Allow while holding a placeable block.",
+                () -> wTap.blocks, v -> wTap.blocks = v));
+        r.add(toggle("Other", "Allow while holding anything else, or an empty hand.",
+                () -> wTap.other, v -> wTap.other = v));
+
+        r.add("Rules");
+        r.add(toggle("Players only", "Only W-Tap attacks aimed at another player.",
+                () -> wTap.playersOnly, v -> wTap.playersOnly = v));
+
+        return r;
+    }
+
     private List<Object> buildHudRows() {
         List<Object> r = new ArrayList<>();
 
@@ -480,6 +599,8 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.hudShowStatus, v -> ConfigHandler.hudShowStatus = v));
         r.add(toggle("Jump reset status", "Show auto jump reset's on/off state.",
                 () -> ConfigHandler.hudShowJumpResetStatus, v -> ConfigHandler.hudShowJumpResetStatus = v));
+        r.add(toggle("W-Tap status", "Show auto W-Tap's on/off state.",
+                () -> ConfigHandler.hudShowWTapStatus, v -> ConfigHandler.hudShowWTapStatus = v));
         r.add(toggle("Hide on F3", "Hide the HUD while the F3 debug overlay is up.",
                 () -> ConfigHandler.hudHideInMenu, v -> ConfigHandler.hudHideInMenu = v));
 
@@ -566,7 +687,7 @@ public class GuiGhostTap extends GuiScreen {
         JumpResetTracker tracker = JumpResetTracker.INSTANCE;
 
         r.add("Jump Reset");
-        r.add(stat("Recorded hits", "Correlated hurt and velocity events recorded this session.",
+        r.add(stat("Recorded", "Correlated hurt and velocity events recorded this session.",
                 () -> String.valueOf(tracker.size())));
         r.add(stat("Triggered", "Recorded events that passed every filter and Chance.",
                 () -> String.valueOf(tracker.triggered())));
@@ -581,6 +702,30 @@ public class GuiGhostTap extends GuiScreen {
                         Analytics::exportJumpReset),
                 button("Reset", "Delete only the recorded Jump Reset analytics data.",
                         Analytics::clearJumpReset)));
+
+        return r;
+    }
+
+    private List<Object> buildWTapAnalyticsRows() {
+        List<Object> r = new ArrayList<>();
+        WTapTracker tracker = WTapTracker.INSTANCE;
+
+        r.add("W-Tap");
+        r.add(stat("Recorded", "Attacks considered by W-Tap this session.",
+                () -> String.valueOf(tracker.size())));
+        r.add(stat("Triggered", "Recorded attacks that passed every rule and Chance.",
+                () -> String.valueOf(tracker.triggered())));
+        r.add(stat("Average delay", "Average measured time from attack to synthetic W-up.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageReleaseDelayMs())));
+        r.add(stat("Average release", "Average measured time W remained released.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageReleaseDurationMs())));
+
+        r.add("Actions");
+        r.add(new GuiButtonRow("Analytics",
+                button("Export CSV", "Save recorded W-Tap decisions and timings to a CSV file on the Desktop.",
+                        Analytics::exportWTap),
+                button("Reset", "Delete only the recorded W-Tap analytics data.",
+                        Analytics::clearWTap)));
 
         return r;
     }

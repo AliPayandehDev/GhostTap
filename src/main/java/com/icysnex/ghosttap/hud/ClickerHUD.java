@@ -5,6 +5,7 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.input.Cps;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.wtap.AutoWTap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -80,6 +81,9 @@ public class ClickerHUD {
 
         if (ConfigHandler.hudShowJumpResetStatus)
             lines.add(Line.status("Jump reset", AutoJumpReset.INSTANCE.isEnabled()));
+
+        if (ConfigHandler.hudShowWTapStatus)
+            lines.add(Line.status("W-Tap", AutoWTap.INSTANCE.isEnabled()));
 
         return lines;
     }

@@ -7,6 +7,7 @@ import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.ClickerGates;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.wtap.AutoWTap;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
 
@@ -20,6 +21,7 @@ public class ConfigHandler {
     private static final String CAT_LEFT = "left_clicker";
     private static final String CAT_RIGHT = "right_clicker";
     private static final String CAT_JUMP_RESET = "auto_jump_reset";
+    private static final String CAT_W_TAP = "auto_w_tap";
     private static final String CAT_KEYS = "keys";
     private static final String CAT_HUD = "hud";
 
@@ -30,6 +32,7 @@ public class ConfigHandler {
     public static int toggleLeftKey = Defaults.KEY_LEFT;
     public static int toggleRightKey = Defaults.KEY_RIGHT;
     public static int toggleJumpResetKey = Defaults.KEY_JUMP_RESET;
+    public static int toggleWTapKey = Defaults.KEY_W_TAP;
     public static ActivationMode leftMode = Defaults.MODE_LEFT;
     public static ActivationMode rightMode = Defaults.MODE_RIGHT;
 
@@ -46,6 +49,7 @@ public class ConfigHandler {
     public static boolean hudCpsRight = Defaults.HUD_CPS_RIGHT;
     public static boolean hudShowStatus = Defaults.HUD_STATUS;
     public static boolean hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
+    public static boolean hudShowWTapStatus = Defaults.HUD_W_TAP_STATUS;
     public static boolean hudBackground = Defaults.HUD_BACKGROUND;
     public static int hudPadding = Defaults.HUD_PADDING;
     public static int hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -70,6 +74,7 @@ public class ConfigHandler {
         hudCpsRight = Defaults.HUD_CPS_RIGHT;
         hudShowStatus = Defaults.HUD_STATUS;
         hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
+        hudShowWTapStatus = Defaults.HUD_W_TAP_STATUS;
         hudBackground = Defaults.HUD_BACKGROUND;
         hudPadding = Defaults.HUD_PADDING;
         hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -90,6 +95,7 @@ public class ConfigHandler {
         ConfigCodec.put(m, "cpsRight", hudCpsRight);
         ConfigCodec.put(m, "showStatus", hudShowStatus);
         ConfigCodec.put(m, "showJumpResetStatus", hudShowJumpResetStatus);
+        ConfigCodec.put(m, "showWTapStatus", hudShowWTapStatus);
         ConfigCodec.put(m, "background", hudBackground);
         ConfigCodec.put(m, "padding", hudPadding);
         ConfigCodec.put(m, "textColor", hudTextColor);
@@ -112,6 +118,7 @@ public class ConfigHandler {
         hudCpsRight = ConfigCodec.flag(m, "cpsRight", hudCpsRight);
         hudShowStatus = ConfigCodec.flag(m, "showStatus", hudShowStatus);
         hudShowJumpResetStatus = ConfigCodec.flag(m, "showJumpResetStatus", hudShowJumpResetStatus);
+        hudShowWTapStatus = ConfigCodec.flag(m, "showWTapStatus", hudShowWTapStatus);
         hudBackground = ConfigCodec.flag(m, "background", hudBackground);
         hudPadding = ConfigCodec.integer(m, "padding", hudPadding);
         hudTextColor = ConfigCodec.integer(m, "textColor", hudTextColor);
@@ -148,11 +155,13 @@ public class ConfigHandler {
         syncGates(CAT_RIGHT, Clicker.RIGHT.gates, save);
 
         syncJumpReset(save);
+        syncWTap(save);
 
         openGuiKey = key(CAT_KEYS, "openGui", openGuiKey, save);
         toggleLeftKey = key(CAT_KEYS, "toggleLeft", toggleLeftKey, save);
         toggleRightKey = key(CAT_KEYS, "toggleRight", toggleRightKey, save);
         toggleJumpResetKey = key(CAT_KEYS, "toggleJumpReset", toggleJumpResetKey, save);
+        toggleWTapKey = key(CAT_KEYS, "toggleWTap", toggleWTapKey, save);
 
         leftMode = mode(CAT_KEYS, "leftMode", leftMode, save);
         rightMode = mode(CAT_KEYS, "rightMode", rightMode, save);
@@ -172,6 +181,7 @@ public class ConfigHandler {
         hudCpsRight = bool(CAT_HUD, "cpsRight", hudCpsRight, save);
         hudShowStatus = bool(CAT_HUD, "showStatus", hudShowStatus, save);
         hudShowJumpResetStatus = bool(CAT_HUD, "showJumpResetStatus", hudShowJumpResetStatus, save);
+        hudShowWTapStatus = bool(CAT_HUD, "showWTapStatus", hudShowWTapStatus, save);
         hudBackground = bool(CAT_HUD, "background", hudBackground, save);
         hudPadding = integer(CAT_HUD, "padding", hudPadding, save);
         hudTextColor = integer(CAT_HUD, "textColor", hudTextColor, save);
@@ -207,6 +217,25 @@ public class ConfigHandler {
         jumpReset.sprintingOnly = bool(CAT_JUMP_RESET, "sprintingOnly", jumpReset.sprintingOnly, save);
         jumpReset.forwardOnly = bool(CAT_JUMP_RESET, "forwardOnly", jumpReset.forwardOnly, save);
         jumpReset.allowInMenu = bool(CAT_JUMP_RESET, "allowInMenu", jumpReset.allowInMenu, save);
+    }
+
+    private static void syncWTap(boolean save) {
+        AutoWTap wTap = AutoWTap.INSTANCE;
+        wTap.setEnabled(bool(CAT_W_TAP, "enabled", wTap.isEnabled(), save));
+        bind(CAT_W_TAP, "chance", () -> wTap.chance, v -> wTap.chance = v, save);
+        bind(CAT_W_TAP, "delayMeanMs", () -> wTap.delayMeanMs, v -> wTap.delayMeanMs = v, save);
+        bind(CAT_W_TAP, "delayStandardDeviationMs", () -> wTap.delayStandardDeviationMs, v -> wTap.delayStandardDeviationMs = v, save);
+        bind(CAT_W_TAP, "delayMinMs", () -> wTap.delayMinMs, v -> wTap.delayMinMs = v, save);
+        bind(CAT_W_TAP, "delayMaxMs", () -> wTap.delayMaxMs, v -> wTap.delayMaxMs = v, save);
+        bind(CAT_W_TAP, "releaseMeanMs", () -> wTap.releaseMeanMs, v -> wTap.releaseMeanMs = v, save);
+        bind(CAT_W_TAP, "releaseStandardDeviationMs", () -> wTap.releaseStandardDeviationMs, v -> wTap.releaseStandardDeviationMs = v, save);
+        bind(CAT_W_TAP, "releaseMinMs", () -> wTap.releaseMinMs, v -> wTap.releaseMinMs = v, save);
+        bind(CAT_W_TAP, "releaseMaxMs", () -> wTap.releaseMaxMs, v -> wTap.releaseMaxMs = v, save);
+        wTap.playersOnly = bool(CAT_W_TAP, "playersOnly", wTap.playersOnly, save);
+        wTap.weapons = bool(CAT_W_TAP, "catWeapons", wTap.weapons, save);
+        wTap.tools = bool(CAT_W_TAP, "catTools", wTap.tools, save);
+        wTap.blocks = bool(CAT_W_TAP, "catBlocks", wTap.blocks, save);
+        wTap.other = bool(CAT_W_TAP, "catOther", wTap.other, save);
     }
 
     private static void syncClicker(String cat, Clicker c, boolean save) {

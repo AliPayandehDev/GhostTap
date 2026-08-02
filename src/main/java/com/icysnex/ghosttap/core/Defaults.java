@@ -65,9 +65,9 @@ public final class Defaults {
 
     public static final class JumpResetProfile {
         public double chance = 0.85;
-        public double delayMeanMs = 25;
-        public double delayStandardDeviationMs = 15;
-        public double delayMinMs = 15;
+        public double delayMeanMs = 15;
+        public double delayStandardDeviationMs = 10;
+        public double delayMinMs = 5;
         public double delayMaxMs = 50;
 
         public double holdMeanMs = 75;
@@ -82,6 +82,27 @@ public final class Defaults {
     }
 
     public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();
+
+    public static final class WTapProfile {
+        public double chance = 1.0;
+        public double delayMeanMs = 25;
+        public double delayStandardDeviationMs = 10;
+        public double delayMinMs = 10;
+        public double delayMaxMs = 50;
+
+        public double releaseMeanMs = 75;
+        public double releaseStandardDeviationMs = 15;
+        public double releaseMinMs = 50;
+        public double releaseMaxMs = 110;
+
+        public boolean playersOnly = true;
+        public boolean weapons = true;
+        public boolean tools = true;
+        public boolean blocks = true;
+        public boolean other = true;
+    }
+
+    public static final WTapProfile W_TAP = new WTapProfile();
 
     static {
         RIGHT.cpsMean = 15.0;
@@ -100,6 +121,7 @@ public final class Defaults {
     public static final int KEY_LEFT = Keyboard.KEY_N;
     public static final int KEY_RIGHT = Keyboard.KEY_M;
     public static final int KEY_JUMP_RESET = Keyboard.KEY_J;
+    public static final int KEY_W_TAP = Keyboard.KEY_K;
     public static final ActivationMode MODE_LEFT = ActivationMode.MOUSE;
     public static final ActivationMode MODE_RIGHT = ActivationMode.MOUSE;
 
@@ -119,6 +141,7 @@ public final class Defaults {
     public static final boolean HUD_CPS_RIGHT = true;
     public static final boolean HUD_STATUS = false;
     public static final boolean HUD_JUMP_RESET_STATUS = false;
+    public static final boolean HUD_W_TAP_STATUS = false;
     public static final boolean HUD_BACKGROUND = true;
     public static final int HUD_PADDING = 5;
     public static final int HUD_TEXT_COLOR = 0xFFFFFFFF;

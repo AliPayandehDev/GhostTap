@@ -172,6 +172,69 @@ def plot_jump_reset(df, file_path, params):
     return fig
 
 
+def plot_w_tap(df, file_path, params):
+    df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
+    triggered = df[df["Outcome"] == "TRIGGERED"]
+    released = triggered[triggered["ActualReleaseDelayMS"] >= 0]
+    resumed = triggered[triggered["ActualReleaseMS"] >= 0]
+
+    trigger_rate = len(triggered) * 100.0 / len(df) if len(df) else 0
+    average_delay = released["ActualReleaseDelayMS"].mean() if len(released) else 0
+    average_release = resumed["ActualReleaseMS"].mean() if len(resumed) else 0
+    average_decision = df["DecisionUS"].mean() if len(df) else 0
+    session_time = df["TimeSeconds"].max() if len(df) else 0
+
+    session_stats = (
+        f"Session: {session_time:.1f}s | Attacks: {len(df)} | Triggered: {len(triggered)} "
+        f"({trigger_rate:.1f}%)\n"
+        f"Avg actual delay: {average_delay:.3f}ms | Avg release: {average_release:.3f}ms | "
+        f"Avg decision cost: {average_decision:.3f}us"
+    )
+    header_text = f"{session_stats}\n---\n" + "\n".join(params)
+
+    fig = plt.figure(figsize=(16, 14))
+    gs = gridspec.GridSpec(3, 2, height_ratios=[1.15, 3, 3], figure=fig)
+    fig.suptitle(f"GhostTap W-Tap Analytics: {os.path.basename(file_path)}",
+                 fontsize=18, fontweight="bold", y=0.99)
+
+    timeline_axis = fig.add_subplot(gs[1, 0])
+    outcome_axis = fig.add_subplot(gs[1, 1])
+    delay_axis = fig.add_subplot(gs[2, 0])
+    release_axis = fig.add_subplot(gs[2, 1])
+
+    if len(released):
+        timeline_axis.scatter(
+            released["TimeSeconds"], released["ActualReleaseDelayMS"],
+            s=20, alpha=0.75, label="Actual W-up delay", color="tab:red",
+        )
+        timeline_axis.scatter(
+            released["TimeSeconds"], released["ScheduledDelayMS"],
+            s=14, alpha=0.45, label="Scheduled delay", color="tab:blue",
+        )
+        timeline_axis.legend(loc="upper right")
+    else:
+        timeline_axis.text(0.5, 0.5, "No completed W releases", ha="center", va="center")
+    timeline_axis.set_title("Attack-relative W Release Timing")
+    timeline_axis.set_xlabel("Session time (s)")
+    timeline_axis.set_ylabel("Delay (ms)")
+
+    outcome_counts = df["Outcome"].value_counts().sort_values(ascending=True)
+    outcome_counts.plot(kind="barh", ax=outcome_axis, color="tab:purple")
+    outcome_axis.set_title("Decision Outcomes")
+    outcome_axis.set_xlabel("Attacks")
+
+    safe_histplot(released["ActualReleaseDelayMS"], delay_axis, "tab:orange")
+    delay_axis.set_title("Actual Attack-to-W-Up Delay")
+    delay_axis.set_xlabel("Delay (ms)")
+
+    safe_histplot(resumed["ActualReleaseMS"], release_axis, "tab:green")
+    release_axis.set_title("Actual W-Release Duration")
+    release_axis.set_xlabel("Duration (ms)")
+
+    add_header(fig, gs[0, :], header_text)
+    return fig
+
+
 def run_analysis():
     file_path = resolve_input_path()
     if not file_path:
@@ -185,10 +248,18 @@ def run_analysis():
         return 1
 
     plt.style.use("seaborn-v0_8-darkgrid")
+    is_w_tap = {
+        "Outcome", "ActualReleaseDelayMS", "ActualReleaseMS", "DecisionUS"
+    }.issubset(df.columns)
     is_jump_reset = {
         "Outcome", "ActualPressDelayMS", "InputTickOffset", "DecisionUS"
     }.issubset(df.columns)
-    fig = plot_jump_reset(df, file_path, params) if is_jump_reset else plot_clicker(df, file_path, params)
+    if is_w_tap:
+        fig = plot_w_tap(df, file_path, params)
+    elif is_jump_reset:
+        fig = plot_jump_reset(df, file_path, params)
+    else:
+        fig = plot_clicker(df, file_path, params)
 
     output_folder = "plots"
     os.makedirs(output_folder, exist_ok=True)
