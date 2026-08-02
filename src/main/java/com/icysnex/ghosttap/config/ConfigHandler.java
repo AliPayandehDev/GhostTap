@@ -6,6 +6,7 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.ClickerGates;
+import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
 
@@ -18,6 +19,7 @@ public class ConfigHandler {
 
     private static final String CAT_LEFT = "left_clicker";
     private static final String CAT_RIGHT = "right_clicker";
+    private static final String CAT_JUMP_RESET = "auto_jump_reset";
     private static final String CAT_KEYS = "keys";
     private static final String CAT_HUD = "hud";
 
@@ -27,6 +29,7 @@ public class ConfigHandler {
     public static int openGuiKey = Defaults.KEY_OPEN;
     public static int toggleLeftKey = Defaults.KEY_LEFT;
     public static int toggleRightKey = Defaults.KEY_RIGHT;
+    public static int toggleJumpResetKey = Defaults.KEY_JUMP_RESET;
     public static ActivationMode leftMode = Defaults.MODE_LEFT;
     public static ActivationMode rightMode = Defaults.MODE_RIGHT;
 
@@ -42,6 +45,7 @@ public class ConfigHandler {
     public static boolean hudCpsLeft = Defaults.HUD_CPS_LEFT;
     public static boolean hudCpsRight = Defaults.HUD_CPS_RIGHT;
     public static boolean hudShowStatus = Defaults.HUD_STATUS;
+    public static boolean hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
     public static boolean hudBackground = Defaults.HUD_BACKGROUND;
     public static int hudPadding = Defaults.HUD_PADDING;
     public static int hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -65,6 +69,7 @@ public class ConfigHandler {
         hudCpsLeft = Defaults.HUD_CPS_LEFT;
         hudCpsRight = Defaults.HUD_CPS_RIGHT;
         hudShowStatus = Defaults.HUD_STATUS;
+        hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
         hudBackground = Defaults.HUD_BACKGROUND;
         hudPadding = Defaults.HUD_PADDING;
         hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -84,6 +89,7 @@ public class ConfigHandler {
         ConfigCodec.put(m, "cpsLeft", hudCpsLeft);
         ConfigCodec.put(m, "cpsRight", hudCpsRight);
         ConfigCodec.put(m, "showStatus", hudShowStatus);
+        ConfigCodec.put(m, "showJumpResetStatus", hudShowJumpResetStatus);
         ConfigCodec.put(m, "background", hudBackground);
         ConfigCodec.put(m, "padding", hudPadding);
         ConfigCodec.put(m, "textColor", hudTextColor);
@@ -105,6 +111,7 @@ public class ConfigHandler {
         hudCpsLeft = ConfigCodec.flag(m, "cpsLeft", hudCpsLeft);
         hudCpsRight = ConfigCodec.flag(m, "cpsRight", hudCpsRight);
         hudShowStatus = ConfigCodec.flag(m, "showStatus", hudShowStatus);
+        hudShowJumpResetStatus = ConfigCodec.flag(m, "showJumpResetStatus", hudShowJumpResetStatus);
         hudBackground = ConfigCodec.flag(m, "background", hudBackground);
         hudPadding = ConfigCodec.integer(m, "padding", hudPadding);
         hudTextColor = ConfigCodec.integer(m, "textColor", hudTextColor);
@@ -140,9 +147,12 @@ public class ConfigHandler {
         syncGates(CAT_LEFT, Clicker.LEFT.gates, save);
         syncGates(CAT_RIGHT, Clicker.RIGHT.gates, save);
 
+        syncJumpReset(save);
+
         openGuiKey = key(CAT_KEYS, "openGui", openGuiKey, save);
         toggleLeftKey = key(CAT_KEYS, "toggleLeft", toggleLeftKey, save);
         toggleRightKey = key(CAT_KEYS, "toggleRight", toggleRightKey, save);
+        toggleJumpResetKey = key(CAT_KEYS, "toggleJumpReset", toggleJumpResetKey, save);
 
         leftMode = mode(CAT_KEYS, "leftMode", leftMode, save);
         rightMode = mode(CAT_KEYS, "rightMode", rightMode, save);
@@ -161,6 +171,7 @@ public class ConfigHandler {
         hudCpsLeft = bool(CAT_HUD, "cpsLeft", hudCpsLeft, save);
         hudCpsRight = bool(CAT_HUD, "cpsRight", hudCpsRight, save);
         hudShowStatus = bool(CAT_HUD, "showStatus", hudShowStatus, save);
+        hudShowJumpResetStatus = bool(CAT_HUD, "showJumpResetStatus", hudShowJumpResetStatus, save);
         hudBackground = bool(CAT_HUD, "background", hudBackground, save);
         hudPadding = integer(CAT_HUD, "padding", hudPadding, save);
         hudTextColor = integer(CAT_HUD, "textColor", hudTextColor, save);
@@ -178,6 +189,16 @@ public class ConfigHandler {
         hudMargin = integer(CAT_HUD, "margin", hudMargin, save);
         hudX = integer(CAT_HUD, "x", hudX, save);
         hudY = integer(CAT_HUD, "y", hudY, save);
+    }
+
+    private static void syncJumpReset(boolean save) {
+        AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
+        jumpReset.setEnabled(bool(CAT_JUMP_RESET, "enabled", jumpReset.isEnabled(), save));
+        bind(CAT_JUMP_RESET, "chance", () -> jumpReset.chance, v -> jumpReset.chance = v, save);
+        bind(CAT_JUMP_RESET, "delayMeanMs", () -> jumpReset.delayMeanMs, v -> jumpReset.delayMeanMs = v, save);
+        bind(CAT_JUMP_RESET, "delayStandardDeviationMs", () -> jumpReset.delayStandardDeviationMs, v -> jumpReset.delayStandardDeviationMs = v, save);
+        bind(CAT_JUMP_RESET, "delayMinMs", () -> jumpReset.delayMinMs, v -> jumpReset.delayMinMs = v, save);
+        bind(CAT_JUMP_RESET, "delayMaxMs", () -> jumpReset.delayMaxMs, v -> jumpReset.delayMaxMs = v, save);
     }
 
     private static void syncClicker(String cat, Clicker c, boolean save) {

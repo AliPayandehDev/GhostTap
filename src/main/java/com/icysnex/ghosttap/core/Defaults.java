@@ -63,6 +63,16 @@ public final class Defaults {
     public static final Profile LEFT = new Profile();
     public static final Profile RIGHT = new Profile();
 
+    public static final class JumpResetProfile {
+        public double chance = 1.0;
+        public double delayMeanMs = 50;
+        public double delayStandardDeviationMs = 12;
+        public double delayMinMs = 25;
+        public double delayMaxMs = 100;
+    }
+
+    public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();
+
     static {
         RIGHT.cpsMean = 15.0;
         RIGHT.cpsMin = 10.0;
@@ -79,6 +89,7 @@ public final class Defaults {
     public static final int KEY_OPEN = Keyboard.KEY_RSHIFT;
     public static final int KEY_LEFT = Keyboard.KEY_N;
     public static final int KEY_RIGHT = Keyboard.KEY_M;
+    public static final int KEY_JUMP_RESET = Keyboard.KEY_J;
     public static final ActivationMode MODE_LEFT = ActivationMode.MOUSE;
     public static final ActivationMode MODE_RIGHT = ActivationMode.MOUSE;
 
@@ -97,6 +108,7 @@ public final class Defaults {
     public static final boolean HUD_CPS_LEFT = true;
     public static final boolean HUD_CPS_RIGHT = true;
     public static final boolean HUD_STATUS = false;
+    public static final boolean HUD_JUMP_RESET_STATUS = false;
     public static final boolean HUD_BACKGROUND = true;
     public static final int HUD_PADDING = 5;
     public static final int HUD_TEXT_COLOR = 0xFFFFFFFF;

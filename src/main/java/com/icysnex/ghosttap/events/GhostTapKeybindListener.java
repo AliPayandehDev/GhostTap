@@ -6,6 +6,7 @@ import com.icysnex.ghosttap.core.ActivationMode;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.Gates;
 import com.icysnex.ghosttap.core.input.InputMouse;
+import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import com.icysnex.ghosttap.gui.GuiGhostTap;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -19,6 +20,7 @@ public class GhostTapKeybindListener {
     private final ButtonState left = new ButtonState();
     private final ButtonState right = new ButtonState();
     private boolean wasOpenDown = false;
+    private boolean wasJumpResetDown = false;
 
     
     @SubscribeEvent
@@ -34,6 +36,13 @@ public class GhostTapKeybindListener {
         if ((openDown && !wasOpenDown) || (!screenOpen && SilentChat.consumeOpenRequest()))
             mc.displayGuiScreen(new GuiGhostTap());
         wasOpenDown = openDown;
+
+        boolean jumpResetDown = !screenOpen && isDown(ConfigHandler.toggleJumpResetKey);
+        if (jumpResetDown && !wasJumpResetDown)
+            AutoJumpReset.INSTANCE.toggle();
+        // Track the physical state while a screen is open so closing the screen
+        // with the key still held cannot produce a second toggle.
+        wasJumpResetDown = isDown(ConfigHandler.toggleJumpResetKey);
 
         process(Clicker.LEFT, ConfigHandler.toggleLeftKey, ConfigHandler.leftMode, InputMouse.BUTTON_LEFT, left, screenOpen, ownGui);
         process(Clicker.RIGHT, ConfigHandler.toggleRightKey, ConfigHandler.rightMode, InputMouse.BUTTON_RIGHT, right, screenOpen, ownGui);

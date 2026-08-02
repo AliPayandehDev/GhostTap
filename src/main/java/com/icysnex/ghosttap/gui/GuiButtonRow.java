@@ -6,9 +6,11 @@ import net.minecraft.client.gui.FontRenderer;
 public class GuiButtonRow extends Widget {
 
     private static final int GAP = 4;
-    private static final int LABEL_W = 44;
+    private static final int MIN_LABEL_W = 44;
+    private static final int LABEL_GAP = 8;
 
     private final GuiActionButton[] buttons;
+    private int labelWidth = MIN_LABEL_W;
 
     public GuiButtonRow(String label, GuiActionButton... buttons) {
         super(label);
@@ -22,6 +24,8 @@ public class GuiButtonRow extends Widget {
 
     @Override
     public void draw(FontRenderer fr, int mouseX, int mouseY) {
+        if (label != null)
+            labelWidth = Math.max(MIN_LABEL_W, fr.getStringWidth(label) + LABEL_GAP);
         layout();
         if (label != null)
             fr.drawString(label, x, y + 3, 0xFFB8B8B8);
@@ -48,7 +52,7 @@ public class GuiButtonRow extends Widget {
     }
 
     private void layout() {
-        int startX = label != null ? x + LABEL_W : x;
+        int startX = label != null ? x + labelWidth : x;
         int each = (x + width - startX - GAP * (buttons.length - 1)) / buttons.length;
         for (int i = 0; i < buttons.length; i++) {
             GuiActionButton b = buttons[i];

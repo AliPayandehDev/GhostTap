@@ -19,6 +19,11 @@ public class Analytics {
         Notice.show("Cleared analytics data.");
     }
 
+    public static void clear(Clicker clicker) {
+        clicker.tracker.clear();
+        Notice.show("Cleared " + label(clicker) + " analytics data.");
+    }
+
     public static void export() {
         if (totalSize() <= 0) {
             Notice.show("No analytics data. Enable tracking and click first.");
@@ -28,6 +33,21 @@ public class Analytics {
         Notice.show("Exporting analytics...");
         exportButton(Clicker.LEFT, "left");
         exportButton(Clicker.RIGHT, "right");
+    }
+
+    public static void export(Clicker clicker) {
+        String label = label(clicker);
+        if (clicker.tracker.size() <= 0) {
+            Notice.show("No " + label + " analytics data. Enable tracking and click first.");
+            return;
+        }
+
+        Notice.show("Exporting " + label + " analytics...");
+        exportButton(clicker, label);
+    }
+
+    private static String label(Clicker clicker) {
+        return clicker == Clicker.LEFT ? "left" : "right";
     }
 
     private static void exportButton(Clicker c, String label) {

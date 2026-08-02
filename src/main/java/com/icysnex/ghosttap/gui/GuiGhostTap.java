@@ -6,6 +6,7 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.analytics.Analytics;
 import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Clicker;
+import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import com.icysnex.ghosttap.utils.Notice;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -19,13 +20,13 @@ import java.util.List;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
-// Custom dark-panel config screen. Four tabs (Left / Right / General /
-// Analytics), each a scrollable list of section headers + widgets. Widget coords
+// Custom dark-panel config screen. Each tab is a scrollable list of section
+// headers + widgets. Widget coords
 // are recomputed every frame in walk(), so the mouse handlers can reuse the same
 // layout.
 public class GuiGhostTap extends GuiScreen {
 
-    private static final int PANEL_W = 250;
+    private static final int PANEL_W = 300;
     private static final int PANEL_H = 210;
     private static final int TITLE_H = 18;
     private static final int TAB_H = 16;
@@ -98,8 +99,8 @@ public class GuiGhostTap extends GuiScreen {
         tabs.add(new Tab("General", single(buildGeneralRows())));
         tabs.add(buildClickerTab(Clicker.LEFT));
         tabs.add(buildClickerTab(Clicker.RIGHT));
+        tabs.add(new Tab("Jump Reset", single(buildJumpResetRows())));
         tabs.add(new Tab("HUD", single(buildHudRows())));
-        tabs.add(new Tab("Analytics", single(buildAnalyticsRows())));
 
         layoutContent();
     }
@@ -128,6 +129,7 @@ public class GuiGhostTap extends GuiScreen {
         subs.add(new SubTab("CPS", buildCpsRows(c)));
         subs.add(new SubTab("Fatigue", buildFatigueRows(c)));
         subs.add(new SubTab("Filters", buildFiltersRows(c, left)));
+        subs.add(new SubTab("Analytics", buildAnalyticsRows(c)));
         return new Tab(left ? "Left" : "Right", subs);
     }
 
@@ -286,6 +288,23 @@ public class GuiGhostTap extends GuiScreen {
             Notice.show("Clipboard has no valid clicker config.");
     }
 
+    private GuiButtonRow jumpResetConfigRow() {
+        AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
+        return new GuiButtonRow("Config",
+                button("Reset", "Restore Jump Reset settings to their defaults.",
+                        () -> { jumpReset.reset(); Notice.show("Reset Jump Reset settings to defaults."); }),
+                button("Export", "Copy Jump Reset settings to the clipboard.", () -> {
+                    setClipboardString(jumpReset.export());
+                    Notice.show("Copied Jump Reset settings to clipboard.");
+                }),
+                button("Import", "Load Jump Reset settings from the clipboard.", () -> {
+                    if (jumpReset.importFrom(getClipboardString()))
+                        Notice.show("Loaded Jump Reset settings from clipboard.");
+                    else
+                        Notice.show("Clipboard has no valid Jump Reset config.");
+                }));
+    }
+
     private List<Object> buildGeneralRows() {
         List<Object> r = new ArrayList<>();
 
@@ -324,6 +343,13 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.toggleRightKey, v -> ConfigHandler.toggleRightKey = v));
         r.add(configRow(Clicker.RIGHT));
 
+        r.add("Jump Reset");
+        r.add(toggle("Enabled", "Turn Jump Reset on or off.",
+                () -> AutoJumpReset.INSTANCE.isEnabled(), v -> AutoJumpReset.INSTANCE.setEnabled(v)));
+        r.add(keybind("Key", "Toggle Jump Reset on or off.",
+                () -> ConfigHandler.toggleJumpResetKey, v -> ConfigHandler.toggleJumpResetKey = v));
+        r.add(jumpResetConfigRow());
+
         r.add("HUD");
         r.add(toggle("Enabled", "Show the on-screen HUD.",
                 () -> ConfigHandler.hudEnabled, v -> ConfigHandler.hudEnabled = v));
@@ -350,6 +376,44 @@ public class GuiGhostTap extends GuiScreen {
         return r;
     }
 
+    private List<Object> buildJumpResetRows() {
+        List<Object> r = new ArrayList<>();
+        AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
+
+        r.add("Action");
+        r.add(slider("Chance", 0, 1, 1, true,
+                "Chance that an eligible hit will trigger a jump reset.",
+                () -> jumpReset.chance, v -> jumpReset.chance = v));
+
+        r.add("Delay (ms)");
+        r.add(slider("Mean", 0, 500, 0, false,
+                "Average delay before the jump reset.",
+                () -> jumpReset.delayMeanMs, v -> {
+                    jumpReset.delayMeanMs = v;
+                    if (v < jumpReset.delayMinMs) jumpReset.delayMinMs = v;
+                    if (v > jumpReset.delayMaxMs) jumpReset.delayMaxMs = v;
+                }));
+        r.add(slider("Std deviation", 0, 150, 0, false,
+                "How much the delay randomly varies around the mean.",
+                () -> jumpReset.delayStandardDeviationMs, v -> jumpReset.delayStandardDeviationMs = v));
+        r.add(slider("Min", 0, 500, 0, false,
+                "Shortest allowed delay.",
+                () -> jumpReset.delayMinMs, v -> {
+                    jumpReset.delayMinMs = v;
+                    if (jumpReset.delayMaxMs < v) jumpReset.delayMaxMs = v;
+                    if (jumpReset.delayMeanMs < v) jumpReset.delayMeanMs = v;
+                }));
+        r.add(slider("Max", 0, 500, 0, false,
+                "Longest allowed delay.",
+                () -> jumpReset.delayMaxMs, v -> {
+                    jumpReset.delayMaxMs = v;
+                    if (jumpReset.delayMinMs > v) jumpReset.delayMinMs = v;
+                    if (jumpReset.delayMeanMs > v) jumpReset.delayMeanMs = v;
+                }));
+
+        return r;
+    }
+
     private List<Object> buildHudRows() {
         List<Object> r = new ArrayList<>();
 
@@ -360,6 +424,8 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.hudCpsRight, v -> ConfigHandler.hudCpsRight = v));
         r.add(toggle("Clicker status", "Show each clicker's on/off state and mode.",
                 () -> ConfigHandler.hudShowStatus, v -> ConfigHandler.hudShowStatus = v));
+        r.add(toggle("Jump reset status", "Show auto jump reset's on/off state.",
+                () -> ConfigHandler.hudShowJumpResetStatus, v -> ConfigHandler.hudShowJumpResetStatus = v));
         r.add(toggle("Hide on F3", "Hide the HUD while the F3 debug overlay is up.",
                 () -> ConfigHandler.hudHideInMenu, v -> ConfigHandler.hudHideInMenu = v));
 
@@ -421,25 +487,22 @@ public class GuiGhostTap extends GuiScreen {
         return f;
     }
 
-    private List<Object> buildAnalyticsRows() {
+    private List<Object> buildAnalyticsRows(Clicker clicker) {
         List<Object> r = new ArrayList<>();
 
-        r.add("Left");
-        r.add(stat("Recorded", "Left clicks recorded this session.",
-                () -> String.valueOf(Clicker.LEFT.tracker.size())));
-        r.add(stat("Average CPS", "Average recorded left click speed.",
-                () -> String.format("%.2f", Clicker.LEFT.tracker.getAverageCps())));
-
-        r.add("Right");
-        r.add(stat("Recorded", "Right clicks recorded this session.",
-                () -> String.valueOf(Clicker.RIGHT.tracker.size())));
-        r.add(stat("Average CPS", "Average recorded right click speed.",
-                () -> String.format("%.2f", Clicker.RIGHT.tracker.getAverageCps())));
+        String side = clicker == Clicker.LEFT ? "Left" : "Right";
+        r.add(side);
+        r.add(stat("Recorded", side + " clicks recorded this session.",
+                () -> String.valueOf(clicker.tracker.size())));
+        r.add(stat("Average CPS", "Average recorded " + side.toLowerCase() + " click speed.",
+                () -> String.format("%.2f", clicker.tracker.getAverageCps())));
 
         r.add("Actions");
-        r.add(button("Export CSV", "Save recorded data to a CSV file on the Desktop.",
-                Analytics::export));
-        r.add(button("Clear data", "Delete all recorded data.", Analytics::clear));
+        r.add(new GuiButtonRow("Analytics",
+                button("Export CSV", "Save this clicker's recorded data to a CSV file on the Desktop.",
+                        () -> Analytics.export(clicker)),
+                button("Reset", "Delete only this clicker's recorded analytics data.",
+                        () -> Analytics.clear(clicker))));
 
         return r;
     }
