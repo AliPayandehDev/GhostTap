@@ -1,5 +1,6 @@
 package com.icysnex.ghosttap.core;
 
+import com.icysnex.ghosttap.core.wtap.WTapMode;
 import org.lwjgl.input.Keyboard;
 
 // Every default value in one place.
@@ -84,16 +85,20 @@ public final class Defaults {
     public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();
 
     public static final class WTapProfile {
+        public WTapMode mode = WTapMode.W_TAP;
         public double chance = 1.0;
-        public double delayMeanMs = 25;
-        public double delayStandardDeviationMs = 10;
-        public double delayMinMs = 10;
-        public double delayMaxMs = 50;
+        public double delayMinMs = 0;
+        public double delayMaxMs = 0;
 
-        public double releaseMeanMs = 75;
-        public double releaseStandardDeviationMs = 15;
-        public double releaseMinMs = 50;
-        public double releaseMaxMs = 110;
+        public double durationMeanMs = 20;
+        public double durationStandardDeviationMs = 3;
+        public double durationMinMs = 15;
+        public double durationMaxMs = 30;
+
+        public double cooldownMeanMs = 500;
+        public double cooldownStandardDeviationMs = 50;
+        public double cooldownMinMs = 400;
+        public double cooldownMaxMs = 600;
 
         public boolean playersOnly = true;
         public boolean weapons = true;

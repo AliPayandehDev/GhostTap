@@ -122,27 +122,27 @@ public class Analytics {
         Notice.show("Exporting W-Tap analytics...");
         FileIO.saveAsync(fileName, writer -> {
             writer.println("# --- START METADATA (W-TAP) ---");
+            writer.printf("# Mode: %s%n", wTap.mode.label);
             writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", wTap.chance * 100);
-            writer.printf(Locale.ROOT, "# Delay: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
-                    wTap.delayMeanMs, wTap.delayStandardDeviationMs,
-                    wTap.delayMinMs, wTap.delayMaxMs);
-            writer.printf(Locale.ROOT, "# Release: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
-                    wTap.releaseMeanMs, wTap.releaseStandardDeviationMs,
-                    wTap.releaseMinMs, wTap.releaseMaxMs);
+            writer.printf("# Reference baseline: delay=0ms, tapDuration=%dms, cooldown=%d client ticks (~%dms)%n",
+                    AutoWTap.BASELINE_DURATION_MS, AutoWTap.BASELINE_COOLDOWN_TICKS,
+                    AutoWTap.BASELINE_COOLDOWN_TICKS * 50);
+            writer.println("# Sprint key: untouched");
+            writer.println("# Stored humanization timing settings are inactive during this baseline test.");
             writer.printf("# Held items: weapons=%s, tools=%s, blocks=%s, other=%s%n",
                     wTap.weapons, wTap.tools, wTap.blocks, wTap.other);
             writer.printf("# Rules: playersOnly=%s%n", wTap.playersOnly);
             writer.println("# Negative timing values mean that stage was not reached or observed before export.");
             writer.println("# --- END METADATA ---");
 
-            writer.println("Timestamp,Outcome,DecisionUS,ScheduledDelayMS,ActualReleaseDelayMS,TargetReleaseMS,ActualReleaseMS,Sprinting,MovingForward,PhysicalWDown,PlayerTarget,HeldItem");
+            writer.println("Timestamp,Outcome,Mode,DecisionUS,ScheduledDelayMS,ActualActionDelayMS,TargetDurationMS,ActualDurationMS,TargetCooldownMS,Sprinting,MovingForward,PhysicalActionDown,PlayerTarget,HeldItem");
             for (WTapData d : snapshot) {
                 writer.printf(Locale.ROOT,
-                        "%d,%s,%.3f,%d,%.4f,%d,%.4f,%s,%s,%s,%s,%s%n",
-                        d.timestamp, d.outcome.name(), nanosToUs(d.decisionNanos),
-                        d.scheduledDelayMs, nanosToMs(d.releaseDelayNanos),
-                        d.targetReleaseMs, nanosToMs(d.actualReleaseNanos),
-                        d.sprinting, d.movingForward, d.physicalWDown,
+                        "%d,%s,%s,%.3f,%d,%.4f,%d,%.4f,%d,%s,%s,%s,%s,%s%n",
+                        d.timestamp, d.outcome.name(), d.mode.name(), nanosToUs(d.decisionNanos),
+                        d.scheduledDelayMs, nanosToMs(d.actionDelayNanos),
+                        d.targetDurationMs, nanosToMs(d.actualDurationNanos), d.targetCooldownMs,
+                        d.sprinting, d.movingForward, d.physicalActionDown,
                         d.playerTarget, d.heldItem.name());
             }
         }, success -> {

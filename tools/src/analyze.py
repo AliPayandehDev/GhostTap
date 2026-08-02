@@ -173,21 +173,31 @@ def plot_jump_reset(df, file_path, params):
 
 
 def plot_w_tap(df, file_path, params):
+    # Keep exports from the earlier W-only analytics schema readable.
+    df = df.rename(columns={
+        "ActualReleaseDelayMS": "ActualActionDelayMS",
+        "TargetReleaseMS": "TargetDurationMS",
+        "ActualReleaseMS": "ActualDurationMS",
+        "PhysicalWDown": "PhysicalActionDown",
+    })
+    if "Mode" not in df.columns:
+        df["Mode"] = "W_TAP"
     df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
     triggered = df[df["Outcome"] == "TRIGGERED"]
-    released = triggered[triggered["ActualReleaseDelayMS"] >= 0]
-    resumed = triggered[triggered["ActualReleaseMS"] >= 0]
+    started = triggered[triggered["ActualActionDelayMS"] >= 0]
+    completed = triggered[triggered["ActualDurationMS"] >= 0]
 
     trigger_rate = len(triggered) * 100.0 / len(df) if len(df) else 0
-    average_delay = released["ActualReleaseDelayMS"].mean() if len(released) else 0
-    average_release = resumed["ActualReleaseMS"].mean() if len(resumed) else 0
+    average_delay = started["ActualActionDelayMS"].mean() if len(started) else 0
+    average_duration = completed["ActualDurationMS"].mean() if len(completed) else 0
     average_decision = df["DecisionUS"].mean() if len(df) else 0
     session_time = df["TimeSeconds"].max() if len(df) else 0
+    modes = ", ".join(sorted(df["Mode"].dropna().unique()))
 
     session_stats = (
         f"Session: {session_time:.1f}s | Attacks: {len(df)} | Triggered: {len(triggered)} "
-        f"({trigger_rate:.1f}%)\n"
-        f"Avg actual delay: {average_delay:.3f}ms | Avg release: {average_release:.3f}ms | "
+        f"({trigger_rate:.1f}%) | Modes: {modes}\n"
+        f"Avg actual delay: {average_delay:.3f}ms | Avg duration: {average_duration:.3f}ms | "
         f"Avg decision cost: {average_decision:.3f}us"
     )
     header_text = f"{session_stats}\n---\n" + "\n".join(params)
@@ -200,21 +210,21 @@ def plot_w_tap(df, file_path, params):
     timeline_axis = fig.add_subplot(gs[1, 0])
     outcome_axis = fig.add_subplot(gs[1, 1])
     delay_axis = fig.add_subplot(gs[2, 0])
-    release_axis = fig.add_subplot(gs[2, 1])
+    duration_axis = fig.add_subplot(gs[2, 1])
 
-    if len(released):
+    if len(started):
         timeline_axis.scatter(
-            released["TimeSeconds"], released["ActualReleaseDelayMS"],
-            s=20, alpha=0.75, label="Actual W-up delay", color="tab:red",
+            started["TimeSeconds"], started["ActualActionDelayMS"],
+            s=20, alpha=0.75, label="Actual action delay", color="tab:red",
         )
         timeline_axis.scatter(
-            released["TimeSeconds"], released["ScheduledDelayMS"],
-            s=14, alpha=0.45, label="Scheduled delay", color="tab:blue",
+            started["TimeSeconds"], started["ScheduledDelayMS"],
+            s=14, alpha=0.45, label="Extra delay", color="tab:blue",
         )
         timeline_axis.legend(loc="upper right")
     else:
-        timeline_axis.text(0.5, 0.5, "No completed W releases", ha="center", va="center")
-    timeline_axis.set_title("Attack-relative W Release Timing")
+        timeline_axis.text(0.5, 0.5, "No started reset actions", ha="center", va="center")
+    timeline_axis.set_title("Attack-relative Reset Timing")
     timeline_axis.set_xlabel("Session time (s)")
     timeline_axis.set_ylabel("Delay (ms)")
 
@@ -223,13 +233,13 @@ def plot_w_tap(df, file_path, params):
     outcome_axis.set_title("Decision Outcomes")
     outcome_axis.set_xlabel("Attacks")
 
-    safe_histplot(released["ActualReleaseDelayMS"], delay_axis, "tab:orange")
-    delay_axis.set_title("Actual Attack-to-W-Up Delay")
+    safe_histplot(started["ActualActionDelayMS"], delay_axis, "tab:orange")
+    delay_axis.set_title("Actual Attack-to-Action Delay")
     delay_axis.set_xlabel("Delay (ms)")
 
-    safe_histplot(resumed["ActualReleaseMS"], release_axis, "tab:green")
-    release_axis.set_title("Actual W-Release Duration")
-    release_axis.set_xlabel("Duration (ms)")
+    safe_histplot(completed["ActualDurationMS"], duration_axis, "tab:green")
+    duration_axis.set_title("Actual Tap Duration")
+    duration_axis.set_xlabel("Duration (ms)")
 
     add_header(fig, gs[0, :], header_text)
     return fig
@@ -249,6 +259,8 @@ def run_analysis():
 
     plt.style.use("seaborn-v0_8-darkgrid")
     is_w_tap = {
+        "Outcome", "Mode", "ActualActionDelayMS", "ActualDurationMS", "DecisionUS"
+    }.issubset(df.columns) or {
         "Outcome", "ActualReleaseDelayMS", "ActualReleaseMS", "DecisionUS"
     }.issubset(df.columns)
     is_jump_reset = {

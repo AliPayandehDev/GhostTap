@@ -5,7 +5,6 @@ import org.lwjgl.input.Keyboard;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -23,13 +22,14 @@ public abstract class MixinLwjglInputKeyboardInject {
     @Shadow(remap = false)
     private static ByteBuffer readBuffer;
 
-    @Unique
-    private static byte ghostTap$previousRealSpace = InputKeyboard.STATE_UP;
-
     @Inject(method = "poll", at = @At("HEAD"), remap = false)
     private static void beforePoll(CallbackInfo ci) {
-        if (keyDownBuffer != null)
-            keyDownBuffer.put(Keyboard.KEY_SPACE, InputKeyboard.realSpace);
+        if (keyDownBuffer == null)
+            return;
+
+        int keys = Math.min(InputKeyboard.KEY_COUNT, keyDownBuffer.capacity());
+        for (int key = 0; key < keys; key++)
+            keyDownBuffer.put(key, (byte) InputKeyboard.realStates.get(key));
     }
 
     @Inject(method = "poll", at = @At("RETURN"), remap = false)
@@ -37,23 +37,22 @@ public abstract class MixinLwjglInputKeyboardInject {
         if (keyDownBuffer == null)
             return;
 
-        byte realSpace = keyDownBuffer.get(Keyboard.KEY_SPACE);
-        InputKeyboard.realSpace = realSpace;
+        int keys = Math.min(InputKeyboard.KEY_COUNT, keyDownBuffer.capacity());
+        for (int key = 0; key < keys; key++) {
+            byte real = keyDownBuffer.get(key);
+            int previousReal = InputKeyboard.realStates.getAndSet(key, real);
 
-        byte spoofedSpace = InputKeyboard.spoofedSpace;
-        if (InputKeyboard.pollSpaceLatch.getAndSet(false))
-            spoofedSpace = InputKeyboard.STATE_DOWN;
-
-        // A physical release event must not release a still-synthetic hold.
-        // Queue a corrective down edge behind the native up edge.
-        if (ghostTap$previousRealSpace == InputKeyboard.STATE_DOWN
-                && realSpace == InputKeyboard.STATE_UP
-                && spoofedSpace == InputKeyboard.STATE_DOWN) {
-            InputKeyboard.pendingEvents.add(new InputKeyboard.Event(Keyboard.KEY_SPACE, InputKeyboard.STATE_DOWN));
+            int override = InputKeyboard.overrideStates.get(key);
+            if (override != InputKeyboard.STATE_PASSTHROUGH) {
+                // Keep a native edge from leaking through an active override.
+                if (previousReal != real && override != real)
+                    InputKeyboard.pendingEvents.add(new InputKeyboard.Event(key, (byte) override));
+                keyDownBuffer.put(key, (byte) override);
+            }
         }
 
-        keyDownBuffer.put(Keyboard.KEY_SPACE, (byte) (realSpace | spoofedSpace));
-        ghostTap$previousRealSpace = realSpace;
+        InputKeyboard.realSpace = InputKeyboard.real(Keyboard.KEY_SPACE);
+        InputKeyboard.pollSerial++;
     }
 
     @Inject(method = "next", at = @At("HEAD"), remap = false)

@@ -36,17 +36,17 @@ public final class WTapTracker {
         return history.stream().filter(d -> d.outcome == WTapData.Outcome.TRIGGERED).count();
     }
 
-    public double averageReleaseDelayMs() {
+    public double averageActionDelayMs() {
         return history.stream()
-                .filter(d -> d.releaseDelayNanos >= 0)
-                .mapToDouble(d -> d.releaseDelayNanos / 1_000_000.0)
+                .filter(d -> d.actionDelayNanos >= 0)
+                .mapToDouble(d -> d.actionDelayNanos / 1_000_000.0)
                 .average().orElse(0);
     }
 
-    public double averageReleaseDurationMs() {
+    public double averageDurationMs() {
         return history.stream()
-                .filter(d -> d.actualReleaseNanos >= 0)
-                .mapToDouble(d -> d.actualReleaseNanos / 1_000_000.0)
+                .filter(d -> d.actualDurationNanos >= 0)
+                .mapToDouble(d -> d.actualDurationNanos / 1_000_000.0)
                 .average().orElse(0);
     }
 

@@ -10,6 +10,7 @@ import com.icysnex.ghosttap.core.analytics.WTapTracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import com.icysnex.ghosttap.core.wtap.AutoWTap;
+import com.icysnex.ghosttap.core.wtap.WTapMode;
 import com.icysnex.ghosttap.utils.Notice;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -508,60 +509,20 @@ public class GuiGhostTap extends GuiScreen {
         AutoWTap wTap = AutoWTap.INSTANCE;
 
         r.add("Action");
+        r.add(wTapModeSegment());
         r.add(slider("Chance", 0, 1, 1, true,
-                "Chance that an eligible attack will trigger a W-Tap.",
+                "Chance that an eligible attack will trigger the selected sprint reset.",
                 () -> wTap.chance, v -> wTap.chance = v));
-        r.add("Delay (ms)");
-        r.add(slider("Mean", 0, 250, 0, false,
-                "Average reaction delay between the attack and releasing W.",
-                () -> wTap.delayMeanMs, v -> {
-                    wTap.delayMeanMs = v;
-                    if (v < wTap.delayMinMs) wTap.delayMinMs = v;
-                    if (v > wTap.delayMaxMs) wTap.delayMaxMs = v;
-                }));
-        r.add(slider("Std deviation", 0, 100, 0, false,
-                "How much the reaction delay randomly varies around the mean.",
-                () -> wTap.delayStandardDeviationMs, v -> wTap.delayStandardDeviationMs = v));
-        r.add(slider("Min", 0, 250, 0, false,
-                "Shortest allowed reaction delay.",
-                () -> wTap.delayMinMs, v -> {
-                    wTap.delayMinMs = v;
-                    if (wTap.delayMaxMs < v) wTap.delayMaxMs = v;
-                    if (wTap.delayMeanMs < v) wTap.delayMeanMs = v;
-                }));
-        r.add(slider("Max", 0, 250, 0, false,
-                "Longest allowed reaction delay.",
-                () -> wTap.delayMaxMs, v -> {
-                    wTap.delayMaxMs = v;
-                    if (wTap.delayMinMs > v) wTap.delayMinMs = v;
-                    if (wTap.delayMeanMs > v) wTap.delayMeanMs = v;
-                }));
 
-        r.add("Release (ms)");
-        r.add(slider("Mean", 0, 500, 0, false,
-                "Average time W remains released before forward movement resumes.",
-                () -> wTap.releaseMeanMs, v -> {
-                    wTap.releaseMeanMs = v;
-                    if (v < wTap.releaseMinMs) wTap.releaseMinMs = v;
-                    if (v > wTap.releaseMaxMs) wTap.releaseMaxMs = v;
-                }));
-        r.add(slider("Std deviation", 0, 150, 0, false,
-                "How much the W-release time randomly varies around the mean.",
-                () -> wTap.releaseStandardDeviationMs, v -> wTap.releaseStandardDeviationMs = v));
-        r.add(slider("Min", 0, 500, 0, false,
-                "Shortest allowed W-release time.",
-                () -> wTap.releaseMinMs, v -> {
-                    wTap.releaseMinMs = v;
-                    if (wTap.releaseMaxMs < v) wTap.releaseMaxMs = v;
-                    if (wTap.releaseMeanMs < v) wTap.releaseMeanMs = v;
-                }));
-        r.add(slider("Max", 0, 500, 0, false,
-                "Longest allowed W-release time.",
-                () -> wTap.releaseMaxMs, v -> {
-                    wTap.releaseMaxMs = v;
-                    if (wTap.releaseMinMs > v) wTap.releaseMinMs = v;
-                    if (wTap.releaseMeanMs > v) wTap.releaseMeanMs = v;
-                }));
+        r.add("Reference baseline");
+        r.add(stat("Delay", "No extra reaction delay is applied during baseline testing.",
+                () -> "0 ms"));
+        r.add(stat("Tap duration", "Fixed to the reference mod's timer during baseline testing.",
+                () -> AutoWTap.BASELINE_DURATION_MS + " ms"));
+        r.add(stat("Cooldown", "The reference mod collapses attacks behind a ten-client-tick gate.",
+                () -> AutoWTap.BASELINE_COOLDOWN_TICKS + " ticks (~500 ms)"));
+        r.add(stat("Sprint key", "W-Tap currently changes only W; Sprint is never injected.",
+                () -> "Untouched"));
 
         return r;
     }
@@ -581,7 +542,7 @@ public class GuiGhostTap extends GuiScreen {
                 () -> wTap.other, v -> wTap.other = v));
 
         r.add("Rules");
-        r.add(toggle("Players only", "Only W-Tap attacks aimed at another player.",
+        r.add(toggle("Players only", "Only reset sprint after attacking another player.",
                 () -> wTap.playersOnly, v -> wTap.playersOnly = v));
 
         return r;
@@ -715,10 +676,10 @@ public class GuiGhostTap extends GuiScreen {
                 () -> String.valueOf(tracker.size())));
         r.add(stat("Triggered", "Recorded attacks that passed every rule and Chance.",
                 () -> String.valueOf(tracker.triggered())));
-        r.add(stat("Average delay", "Average measured time from attack to synthetic W-up.",
-                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageReleaseDelayMs())));
-        r.add(stat("Average release", "Average measured time W remained released.",
-                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageReleaseDurationMs())));
+        r.add(stat("Average delay", "Average measured time from attack to the selected key action.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageActionDelayMs())));
+        r.add(stat("Average duration", "Average time the selected reset key remained altered.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageDurationMs())));
 
         r.add("Actions");
         r.add(new GuiButtonRow("Analytics",
@@ -759,6 +720,19 @@ public class GuiGhostTap extends GuiScreen {
 
         GuiSegment s = new GuiSegment(label, names, get, set);
         s.tooltip = tip;
+        return s;
+    }
+
+    private GuiSegment wTapModeSegment() {
+        WTapMode[] modes = WTapMode.values();
+        String[] names = new String[modes.length];
+        for (int i = 0; i < modes.length; i++)
+            names[i] = modes[i].label;
+
+        GuiSegment s = new GuiSegment("Mode", names,
+                () -> AutoWTap.INSTANCE.mode.ordinal(),
+                i -> AutoWTap.INSTANCE.mode = modes[i]);
+        s.tooltip = "W releases forward, S presses backward, and Shift briefly sneaks.";
         return s;
     }
 

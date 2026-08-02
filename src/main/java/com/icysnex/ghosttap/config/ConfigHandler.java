@@ -8,6 +8,7 @@ import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.ClickerGates;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import com.icysnex.ghosttap.core.wtap.AutoWTap;
+import com.icysnex.ghosttap.core.wtap.WTapMode;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
 
@@ -222,15 +223,18 @@ public class ConfigHandler {
     private static void syncWTap(boolean save) {
         AutoWTap wTap = AutoWTap.INSTANCE;
         wTap.setEnabled(bool(CAT_W_TAP, "enabled", wTap.isEnabled(), save));
+        wTap.mode = wTapMode(CAT_W_TAP, "mode", wTap.mode, save);
         bind(CAT_W_TAP, "chance", () -> wTap.chance, v -> wTap.chance = v, save);
-        bind(CAT_W_TAP, "delayMeanMs", () -> wTap.delayMeanMs, v -> wTap.delayMeanMs = v, save);
-        bind(CAT_W_TAP, "delayStandardDeviationMs", () -> wTap.delayStandardDeviationMs, v -> wTap.delayStandardDeviationMs = v, save);
         bind(CAT_W_TAP, "delayMinMs", () -> wTap.delayMinMs, v -> wTap.delayMinMs = v, save);
         bind(CAT_W_TAP, "delayMaxMs", () -> wTap.delayMaxMs, v -> wTap.delayMaxMs = v, save);
-        bind(CAT_W_TAP, "releaseMeanMs", () -> wTap.releaseMeanMs, v -> wTap.releaseMeanMs = v, save);
-        bind(CAT_W_TAP, "releaseStandardDeviationMs", () -> wTap.releaseStandardDeviationMs, v -> wTap.releaseStandardDeviationMs = v, save);
-        bind(CAT_W_TAP, "releaseMinMs", () -> wTap.releaseMinMs, v -> wTap.releaseMinMs = v, save);
-        bind(CAT_W_TAP, "releaseMaxMs", () -> wTap.releaseMaxMs, v -> wTap.releaseMaxMs = v, save);
+        bind(CAT_W_TAP, "durationMeanMs", () -> wTap.durationMeanMs, v -> wTap.durationMeanMs = v, save);
+        bind(CAT_W_TAP, "durationStandardDeviationMs", () -> wTap.durationStandardDeviationMs, v -> wTap.durationStandardDeviationMs = v, save);
+        bind(CAT_W_TAP, "durationMinMs", () -> wTap.durationMinMs, v -> wTap.durationMinMs = v, save);
+        bind(CAT_W_TAP, "durationMaxMs", () -> wTap.durationMaxMs, v -> wTap.durationMaxMs = v, save);
+        bind(CAT_W_TAP, "cooldownMeanMs", () -> wTap.cooldownMeanMs, v -> wTap.cooldownMeanMs = v, save);
+        bind(CAT_W_TAP, "cooldownStandardDeviationMs", () -> wTap.cooldownStandardDeviationMs, v -> wTap.cooldownStandardDeviationMs = v, save);
+        bind(CAT_W_TAP, "cooldownMinMs", () -> wTap.cooldownMinMs, v -> wTap.cooldownMinMs = v, save);
+        bind(CAT_W_TAP, "cooldownMaxMs", () -> wTap.cooldownMaxMs, v -> wTap.cooldownMaxMs = v, save);
         wTap.playersOnly = bool(CAT_W_TAP, "playersOnly", wTap.playersOnly, save);
         wTap.weapons = bool(CAT_W_TAP, "catWeapons", wTap.weapons, save);
         wTap.tools = bool(CAT_W_TAP, "catTools", wTap.tools, save);
@@ -333,6 +337,20 @@ public class ConfigHandler {
         
         try {
             return ActivationMode.valueOf(p.getString());
+        } catch (IllegalArgumentException e) {
+            return current;
+        }
+    }
+
+    private static WTapMode wTapMode(String cat, String name, WTapMode current, boolean save) {
+        Property p = config.get(cat, name, current.name(), "Sprint-reset mode: W_TAP, S_TAP or SHIFT_TAP");
+        if (save) {
+            p.set(current.name());
+            return current;
+        }
+
+        try {
+            return WTapMode.valueOf(p.getString());
         } catch (IllegalArgumentException e) {
             return current;
         }
