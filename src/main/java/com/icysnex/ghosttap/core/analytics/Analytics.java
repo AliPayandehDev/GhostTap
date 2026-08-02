@@ -1,10 +1,12 @@
 package com.icysnex.ghosttap.core.analytics;
 
 import com.icysnex.ghosttap.core.click.Clicker;
+import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import com.icysnex.ghosttap.utils.FileIO;
 import com.icysnex.ghosttap.utils.Notice;
 
 import java.util.List;
+import java.util.Locale;
 
 // Export/clear used by the config UI; one CSV per button.
 public class Analytics {
@@ -22,6 +24,11 @@ public class Analytics {
     public static void clear(Clicker clicker) {
         clicker.tracker.clear();
         Notice.show("Cleared " + label(clicker) + " analytics data.");
+    }
+
+    public static void clearJumpReset() {
+        JumpResetTracker.INSTANCE.clear();
+        Notice.show("Cleared Jump Reset analytics data.");
     }
 
     public static void export() {
@@ -44,6 +51,63 @@ public class Analytics {
 
         Notice.show("Exporting " + label + " analytics...");
         exportButton(clicker, label);
+    }
+
+    public static void exportJumpReset() {
+        JumpResetTracker tracker = JumpResetTracker.INSTANCE;
+        if (tracker.size() <= 0) {
+            Notice.show("No Jump Reset analytics data. Enable tracking and receive a hit first.");
+            return;
+        }
+
+        String fileName = "analytics_jump_reset_" + System.currentTimeMillis() + ".csv";
+        List<JumpResetData> snapshot = tracker.copy();
+        AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
+
+        Notice.show("Exporting Jump Reset analytics...");
+        FileIO.saveAsync(fileName, writer -> {
+            writer.println("# --- START METADATA (JUMP RESET) ---");
+            writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", jumpReset.chance * 100);
+            writer.printf(Locale.ROOT, "# Delay: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
+                    jumpReset.delayMeanMs, jumpReset.delayStandardDeviationMs,
+                    jumpReset.delayMinMs, jumpReset.delayMaxMs);
+            writer.printf(Locale.ROOT, "# Hold: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
+                    jumpReset.holdMeanMs, jumpReset.holdStandardDeviationMs,
+                    jumpReset.holdMinMs, jumpReset.holdMaxMs);
+            writer.printf("# Filters: ground=%s, sprinting=%s, forward=%s, menus=%s%n",
+                    jumpReset.onGroundOnly, jumpReset.sprintingOnly,
+                    jumpReset.forwardOnly, jumpReset.allowInMenu);
+            writer.println("# Negative timing/tick values mean that stage was not reached or observed before export.");
+            writer.println("# --- END METADATA ---");
+
+            writer.println("Timestamp,Outcome,HurtToVelocityMS,DecisionUS,ScheduledDelayMS,ActualPressDelayMS,HitInputTick,PressInputTick,InputTickOffset,TargetHoldMS,ActualHoldMS,OnGround,Sprinting,MovingForward,ScreenOpen,PhysicalSpaceDown,VelocityX,VelocityY,VelocityZ,HorizontalVelocity");
+            for (JumpResetData d : snapshot) {
+                double velocityX = d.velocityX / 8000.0;
+                double velocityY = d.velocityY / 8000.0;
+                double velocityZ = d.velocityZ / 8000.0;
+                double horizontal = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
+                writer.printf(Locale.ROOT,
+                        "%d,%s,%.4f,%.3f,%d,%.4f,%d,%d,%d,%d,%.4f,%s,%s,%s,%s,%s,%.5f,%.5f,%.5f,%.5f%n",
+                        d.timestamp, d.outcome.name(), nanosToMs(d.hurtToVelocityNanos),
+                        nanosToUs(d.decisionNanos), d.scheduledDelayMs, nanosToMs(d.pressNanos),
+                        d.hitInputTick, d.pressInputTick, d.inputTickOffset, d.targetHoldMs,
+                        nanosToMs(d.actualHoldNanos), d.onGround, d.sprinting, d.movingForward,
+                        d.screenOpen, d.physicalSpaceDown, velocityX, velocityY, velocityZ, horizontal);
+            }
+        }, success -> {
+            if (success)
+                Notice.show("Exported Jump Reset: " + fileName);
+            else
+                Notice.show("Jump Reset export failed (see console).");
+        });
+    }
+
+    private static double nanosToMs(long nanos) {
+        return nanos < 0 ? -1 : nanos / 1_000_000.0;
+    }
+
+    private static double nanosToUs(long nanos) {
+        return nanos < 0 ? -1 : nanos / 1_000.0;
     }
 
     private static String label(Clicker clicker) {

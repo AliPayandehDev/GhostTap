@@ -7,6 +7,7 @@
 	"client": [
 		"MixinLwjglInputMouseInject",
 		"MixinLwjglInputKeyboardInject",
+		"MixinNetHandlerPlayClient",
 		"MixinPlayerChat",
 		"MixinFmlModList"
 	],

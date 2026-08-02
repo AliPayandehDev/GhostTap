@@ -52,9 +52,10 @@
 - **3 Activation Modes:** Toggle, Hold, or Mouse mode (arms the clicker, but only clicks when you hold your physical mouse button).
 - **Humanization:** Custom Gaussian CPS distributions, random spikes/stutters, variable hold times, and rhythmic pace drift.
 - **Smart Filters (Gates):** Restrict clicking by hotbar slot, held item type, gamemode, in-game menus, entity reach, block-breaking (LMB), and block-placement (RMB).
+- **Jump Reset:** Reacts to received knockback with a configurable Space press, including chance, delay, hold time, and movement filters.
 - **Live HUD:** Customizable CPS counter and clicker status overlay.
-- **Click Analytics:** Export precise timing data to CSV and plot the distributions using the included Python tool.
-- **Config Sharing:** Import and export your settings instantly as base64 clipboard tokens.
+- **Session Analytics:** Export click timing and Jump Reset decisions to CSV and plot them using the included Python tool.
+- **Config Sharing:** Import and export clicker, Jump Reset, and HUD settings instantly as base64 clipboard tokens.
 
 ---
 
@@ -74,11 +75,12 @@ GhostTap is a fully open-source internal mod built to solve this with two goals:
 
 ## How It Works
 
-GhostTap uses SpongePowered **Mixins** to hook into LWJGL's `org.lwjgl.input.Mouse` (`poll()` and `next()`), which the game uses to read hardware inputs every frame.
+GhostTap uses SpongePowered **Mixins** to hook into LWJGL's mouse and keyboard input paths (`poll()` and `next()`), which the game uses to read hardware inputs every frame.
 
 - When active, it injects synthetic press and release events directly into the mouse queue.
 - It automatically masks your physical clicks so your manual clicking and the mod don't conflict.
-- Because it avoids `java.awt.Robot` and network-level packet manipulation, all standard HUD mods (Keystrokes, CPS counters) still register the clicks properly.
+- Jump Reset watches the local hurt and velocity packet sequence without changing either packet, then injects a Space press when the configured conditions pass.
+- Because it avoids `java.awt.Robot` and network-level packet manipulation, standard HUD mods (Keystrokes, CPS counters) still register the generated input properly.
 - Clicks are handled on two dedicated worker threads that sleep when idle, keeping CPU overhead at zero. Filters are evaluated safely on the main thread once per client tick.
 
 > [!WARNING]
@@ -104,6 +106,7 @@ Controls global toggles, activation styles, analytics, and an option to hide the
 | **Start Delay** | *(Mouse mode only)* Delay before clicking starts so quick taps pass through normally. |
 | **Key** | Keybind for the clicker (supports keyboard and mouse side buttons). |
 | **Config** | Reset, export, or import profiles via clipboard tokens. |
+| **Jump Reset** | Toggle the module, choose its keybind, or reset, export, and import its profile. |
 
 #### Activation Modes
 * **Toggle:** Tap the key once to turn the clicker on; tap again to turn it off.
@@ -143,6 +146,18 @@ Each clicker features three sub-tabs for deep tuning:
 
 ---
 
+### Jump Reset
+
+Jump Reset watches for the local hurt and velocity packet sequence. When the hit passes the configured chance and filters, it presses Space through the same LWJGL keyboard path used by Minecraft and Keystrokes mods. It does not cancel knockback or send movement packets directly.
+
+* **Timing:** Configure the trigger chance, reaction delay, and how long Space is held. The default profile uses an 85% chance, a 25ms mean delay (15-50ms), and a 75ms mean hold (50-100ms).
+* **Filters:** Only trigger while on the ground, sprinting, moving forward, or optionally while a menu is open.
+* **Analytics:** View recorded hits, triggered attempts, same-input-tick rate, and average press delay. Sessions can be exported to CSV or reset independently.
+
+Delay starts when the velocity event reaches the client. If it crosses Minecraft's next input sample, the press moves into a later game tick.
+
+---
+
 ### HUD Options
 
 <p align="center">
@@ -162,9 +177,11 @@ Each clicker features three sub-tabs for deep tuning:
   <img src="assets/screenshots/gui-analytics.png" alt="Analytics tab">
 </p>
 
-When enabled, GhostTap logs every single click (both real and generated) with precise timestamps, target vs. actual CPS, hold durations, and intervals. 
+When enabled, GhostTap logs every single click (both real and generated) with precise timestamps, target vs. actual CPS, hold durations, and intervals.
 
-Exporting saves a `.csv` file directly to your desktop. You can run the Python script located in the `tools/` directory to plot your click distributions and verify how human your settings actually look.
+Jump Reset analytics records correlated hurt and velocity events, skipped decisions, packet and computation timing, scheduled vs. actual delay, movement-tick offset, input state, hold timing, and incoming velocity.
+
+Exporting saves a `.csv` file directly to your desktop. The Python script in `tools/` automatically recognizes clicker and Jump Reset CSV files and plots the relevant distributions.
 
 <p align="center">
   <img src="assets/plots/combined.png" alt="Analytics plots">

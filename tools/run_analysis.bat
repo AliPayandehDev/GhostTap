@@ -28,7 +28,7 @@ if %errorlevel% neq 0 (
 
 :: 3. Run the script
 echo [GHOSTTAP] Launching Analysis...
-python3 src/analyze.py
+python3 src/analyze.py %*
 
 if %errorlevel% neq 0 (
     echo.

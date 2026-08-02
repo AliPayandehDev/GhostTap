@@ -1,131 +1,205 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import glob
 import os
+import sys
+
 import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 
 def get_latest_stats_file(folder_path):
-    # Search for all CSV files starting with 'analytics_'
-    search_pattern = os.path.join(folder_path, "analytics_*.csv")
-    files = glob.glob(search_pattern)
-    
-    if not files:
+    files = glob.glob(os.path.join(folder_path, "analytics_*.csv"))
+    return max(files, key=os.path.getctime) if files else None
+
+
+def resolve_input_path():
+    if len(sys.argv) > 1:
+        requested = sys.argv[1]
+        if os.path.isfile(requested):
+            return requested
+        if os.path.isdir(requested):
+            return get_latest_stats_file(requested)
+        print(f"Error: Analytics path does not exist: {requested}")
         return None
-    
-    # Sort files by creation time (the timestamp in the name also works)
-    # this picks the newest file added to the folder
-    latest_file = max(files, key=os.path.getctime)
-    return latest_file
+    return get_latest_stats_file("analytics")
+
+
+def read_metadata(file_path):
+    params = []
+    with open(file_path, "r", encoding="utf-8") as source:
+        for line in source:
+            if line.startswith("#") and "METADATA" not in line:
+                params.append(line.replace("#", "", 1).strip())
+            elif line.startswith("Timestamp"):
+                break
+    return params
+
+
+def add_header(fig, slot, text):
+    header_ax = fig.add_subplot(slot)
+    header_ax.axis("off")
+    header_ax.text(
+        0.01, 0.8, text, fontsize=11, family="monospace",
+        verticalalignment="center", wrap=True,
+        bbox=dict(facecolor="white", alpha=0.8, edgecolor="gray"),
+    )
+
+
+def safe_histplot(series, axis, color):
+    values = series.dropna()
+    if values.empty:
+        axis.text(0.5, 0.5, "No completed samples", ha="center", va="center")
+        return
+    sns.histplot(values, kde=len(values) > 1 and values.nunique() > 1, ax=axis, color=color)
+
+
+def plot_clicker(df, file_path, params):
+    df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
+    session_time = df["TimeSeconds"].max() if not df.empty else 0
+    avg_actual_cps = df["ActualCPS"].mean() if not df.empty else 0
+    avg_hold_ms = df["HoldMS"].mean() if not df.empty else 0
+
+    session_stats = (
+        f"Session Duration: {session_time:.1f}s | Total Clicks: {len(df)} | "
+        f"Avg Speed: {avg_actual_cps:.2f} CPS | Avg Hold: {avg_hold_ms:.1f}ms"
+    )
+    header_text = f"{session_stats}\n---\n" + "\n".join(params)
+
+    fig = plt.figure(figsize=(16, 14))
+    gs = gridspec.GridSpec(3, 2, height_ratios=[1, 3, 3], figure=fig)
+    fig.suptitle(f"GhostTap Click Analytics: {os.path.basename(file_path)}",
+                 fontsize=18, fontweight="bold", y=0.98)
+
+    cps_axis = fig.add_subplot(gs[1, 0])
+    trend_axis = fig.add_subplot(gs[1, 1])
+    hold_axis = fig.add_subplot(gs[2, 0])
+    interval_axis = fig.add_subplot(gs[2, 1])
+
+    cps_axis.plot(df["TimeSeconds"], df["TargetCPS"], label="Target", alpha=0.3, color="blue")
+    cps_axis.plot(df["TimeSeconds"], df["ActualCPS"], label="Actual", color="red", linewidth=1.5)
+    cps_axis.set_title("CPS Performance")
+    cps_axis.set_ylabel("CPS")
+    cps_axis.legend(loc="upper right")
+
+    trend_axis.plot(df["TimeSeconds"], df["Trend"], color="purple", alpha=0.8)
+    trend_axis.axhline(0, color="black", linestyle="--", alpha=0.3)
+    trend_axis.set_title("Humanization Trend")
+    trend_axis.set_ylabel("Trend Offset")
+
+    safe_histplot(df["HoldMS"], hold_axis, "green")
+    hold_axis.set_title("Hold Duration")
+    hold_axis.set_xlabel("Hold Duration (ms)")
+
+    safe_histplot(df["IntervalMS"], interval_axis, "orange")
+    interval_axis.set_title("Interval Distribution")
+    interval_axis.set_xlabel("Interval Duration (ms)")
+
+    add_header(fig, gs[0, :], header_text)
+    return fig
+
+
+def plot_jump_reset(df, file_path, params):
+    df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
+    triggered = df[df["Outcome"] == "TRIGGERED"]
+    pressed = triggered[triggered["ActualPressDelayMS"] >= 0]
+    observed_ticks = triggered[triggered["InputTickOffset"] >= 0]
+
+    trigger_rate = len(triggered) * 100.0 / len(df) if len(df) else 0
+    same_tick_rate = (
+        (observed_ticks["InputTickOffset"] == 0).mean() * 100.0
+        if len(observed_ticks) else 0
+    )
+    average_delay = pressed["ActualPressDelayMS"].mean() if len(pressed) else 0
+    average_decision = df["DecisionUS"].mean() if len(df) else 0
+    average_packet_gap = df["HurtToVelocityMS"].mean() if len(df) else 0
+    session_time = df["TimeSeconds"].max() if len(df) else 0
+
+    session_stats = (
+        f"Session: {session_time:.1f}s | Hits: {len(df)} | Triggered: {len(triggered)} "
+        f"({trigger_rate:.1f}%) | Same input tick: {same_tick_rate:.1f}%\n"
+        f"Avg actual delay: {average_delay:.3f}ms | Avg decision cost: {average_decision:.3f}us | "
+        f"Avg S19->S12: {average_packet_gap:.3f}ms"
+    )
+    header_text = f"{session_stats}\n---\n" + "\n".join(params)
+
+    fig = plt.figure(figsize=(16, 14))
+    gs = gridspec.GridSpec(3, 2, height_ratios=[1.15, 3, 3], figure=fig)
+    fig.suptitle(f"GhostTap Jump Reset Analytics: {os.path.basename(file_path)}",
+                 fontsize=18, fontweight="bold", y=0.98)
+
+    timeline_axis = fig.add_subplot(gs[1, 0])
+    outcome_axis = fig.add_subplot(gs[1, 1])
+    delay_axis = fig.add_subplot(gs[2, 0])
+    tick_axis = fig.add_subplot(gs[2, 1])
+
+    if len(pressed):
+        timeline_axis.scatter(
+            pressed["TimeSeconds"], pressed["ActualPressDelayMS"],
+            s=20, alpha=0.75, label="Actual press delay", color="tab:red",
+        )
+        timeline_axis.scatter(
+            pressed["TimeSeconds"], pressed["ScheduledDelayMS"],
+            s=14, alpha=0.45, label="Scheduled delay", color="tab:blue",
+        )
+        timeline_axis.legend(loc="upper right")
+    else:
+        timeline_axis.text(0.5, 0.5, "No completed presses", ha="center", va="center")
+    timeline_axis.set_title("Hit-relative Press Timing")
+    timeline_axis.set_xlabel("Session time (s)")
+    timeline_axis.set_ylabel("Delay (ms)")
+
+    outcome_counts = df["Outcome"].value_counts().sort_values(ascending=True)
+    outcome_counts.plot(kind="barh", ax=outcome_axis, color="tab:purple")
+    outcome_axis.set_title("Decision Outcomes")
+    outcome_axis.set_xlabel("Events")
+
+    safe_histplot(pressed["ActualPressDelayMS"], delay_axis, "tab:orange")
+    delay_axis.set_title("Actual Packet-to-Space Delay")
+    delay_axis.set_xlabel("Delay (ms)")
+
+    if len(observed_ticks):
+        tick_counts = observed_ticks["InputTickOffset"].astype(int).value_counts().sort_index()
+        tick_counts.plot(kind="bar", ax=tick_axis, color="tab:green")
+        tick_axis.set_xticklabels([str(value) for value in tick_counts.index], rotation=0)
+    else:
+        tick_axis.text(0.5, 0.5, "No movement-tick observations", ha="center", va="center")
+    tick_axis.set_title("Movement Input Tick Offset")
+    tick_axis.set_xlabel("Ticks after hit input tick (0 = same)")
+    tick_axis.set_ylabel("Presses")
+
+    add_header(fig, gs[0, :], header_text)
+    return fig
 
 
 def run_analysis():
-    stats_folder = "analytics" 
-    file_path = get_latest_stats_file(stats_folder)
-    
+    file_path = resolve_input_path()
     if not file_path:
-        print(f"Error: No analytics files found!")
-        return
+        print("Error: No analytics files found!")
+        return 1
 
-    # 1. Parse Metadata into a clean list
-    params = []
-    with open(file_path, 'r') as f:
-        for line in f:
-            if line.startswith('#') and "METADATA" not in line:
-                params.append(line.replace('#', '').strip())
-            elif line.startswith('Timestamp'):
-                break
+    params = read_metadata(file_path)
+    df = pd.read_csv(file_path, comment="#")
+    if df.empty:
+        print(f"Error: Analytics file has no rows: {file_path}")
+        return 1
 
-    # 2. Load Data
-    df = pd.read_csv(file_path, comment='#')
-    df['TimeSeconds'] = (df['Timestamp'] - df['Timestamp'].min()) / 1000.0
+    plt.style.use("seaborn-v0_8-darkgrid")
+    is_jump_reset = {
+        "Outcome", "ActualPressDelayMS", "InputTickOffset", "DecisionUS"
+    }.issubset(df.columns)
+    fig = plot_jump_reset(df, file_path, params) if is_jump_reset else plot_clicker(df, file_path, params)
 
-    # 3. Calculate Session Stats
-    total_clicks = len(df)
-    session_time = df['TimeSeconds'].max()
-    avg_actual_cps = df['ActualCPS'].mean()
-    avg_hold_ms = df['HoldMS'].mean()
-
-    # --- Combine Stats + Metadata for the header ---
-    session_stats = (
-        f"Session Duration: {session_time:.1f}s | "
-        f"Total Clicks: {total_clicks} | "
-        f"Avg Speed: {avg_actual_cps:.2f} CPS | "
-        f"Avg Hold: {avg_hold_ms:.1f}ms"
-    )
-    
-    config_params = "\n".join(params)
-    header_text = f"{session_stats}\n---\n{config_params}"
-
-    # 4. Visualization Setup
-    plt.style.use('seaborn-v0_8-darkgrid')
-    
-    # --- NEW: GRIDSPEC LAYOUT ---
-    # Total Figure Size: Making it longer (height=14 instead of 11)
-    fig = plt.figure(figsize=(16, 14)) 
-    
-    # Create a 3x2 grid with specified height ratios
-    # Row 0: Header (20% of height)
-    # Rows 1, 2: Plots (40% of height each)
-    gs = gridspec.GridSpec(3, 2, height_ratios=[1, 3, 3], figure=fig)
-
-    # A. Add Title
-    fig.suptitle(f"GhostTap: {os.path.basename(file_path)}", 
-                 fontsize=18, fontweight='bold', y=0.98)
-
-    # B. Define Plotting Areas (Axes)
-    ax0_0 = fig.add_subplot(gs[1, 0]) # Row 1, Col 0: CPS Plot
-    ax0_1 = fig.add_subplot(gs[1, 1]) # Row 1, Col 1: Trend Plot
-    ax1_0 = fig.add_subplot(gs[2, 0]) # Row 2, Col 0: Hold Plot
-    ax1_1 = fig.add_subplot(gs[2, 1]) # Row 2, Col 1: Interval Plot
-
-    # --- PLOTS ---
-    # CPS Plot (Top Left)
-    ax0_0.plot(df['TimeSeconds'], df['TargetCPS'], label='Target', alpha=0.3, color='blue')
-    ax0_0.plot(df['TimeSeconds'], df['ActualCPS'], label='Actual', color='red', linewidth=1.5)
-    ax0_0.set_title('CPS Performance')
-    ax0_0.set_ylabel('CPS')
-    ax0_0.legend(loc='upper right')
-
-    # Trend Plot (Top Right)
-    ax0_1.plot(df['TimeSeconds'], df['Trend'], color='purple', alpha=0.8)
-    ax0_1.axhline(0, color='black', linestyle='--', alpha=0.3)
-    ax0_1.set_title('Humanization Trend')
-    ax0_1.set_ylabel('Trend Offset')
-
-    # Hold Distribution (Bottom Left)
-    sns.histplot(df['HoldMS'], kde=True, ax=ax1_0, color='green')
-    ax1_0.set_title('Hold Duration')
-    ax1_0.set_xlabel('Hold Duration (ms)')
-
-    # Interval Distribution (Bottom Right)
-    sns.histplot(df['IntervalMS'], kde=True, ax=ax1_1, color='orange')
-    ax1_1.set_title('Interval Distribution')
-    ax1_1.set_xlabel('Interval Duration (ms)')
-
-    # --- THE TOP HEADER ---
-    # Use a dummy text-only plot in the top-left slot to hold the data
-    # We turn off the axis so it's just text
-    header_ax = fig.add_subplot(gs[0, :]) # Use the ENTIRE top row
-    header_ax.axis('off') # Hide grids, ticks, spines
-
-    # Add the text directly to this axis, aligned left
-    header_ax.text(0.01, 0.8, header_text, fontsize=12, family='monospace',
-                  verticalalignment='center', wrap=True,
-                  bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
-
-    # Adjust layout to prevent overlap, leaving margin at the very bottom
-    plt.tight_layout(rect=[0, 0.02, 1, 0.95])
-    
-    # 5. Save
     output_folder = "plots"
-    if not os.path.exists(output_folder): os.makedirs(output_folder)
-    output_name = os.path.basename(file_path).replace('.csv', '.png')
-    plt.savefig(os.path.join(output_folder, output_name), dpi=300)
-    
+    os.makedirs(output_folder, exist_ok=True)
+    output_name = os.path.basename(file_path).replace(".csv", ".png")
+    fig.tight_layout(rect=[0, 0.02, 1, 0.95])
+    fig.savefig(os.path.join(output_folder, output_name), dpi=300)
+
     print(f"Analysis Complete: {output_name}")
     plt.show()
+    return 0
+
 
 if __name__ == "__main__":
-    run_analysis()
+    raise SystemExit(run_analysis())

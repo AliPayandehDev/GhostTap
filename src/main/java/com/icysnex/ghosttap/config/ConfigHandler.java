@@ -203,6 +203,10 @@ public class ConfigHandler {
         bind(CAT_JUMP_RESET, "holdStandardDeviationMs", () -> jumpReset.holdStandardDeviationMs, v -> jumpReset.holdStandardDeviationMs = v, save);
         bind(CAT_JUMP_RESET, "holdMinMs", () -> jumpReset.holdMinMs, v -> jumpReset.holdMinMs = v, save);
         bind(CAT_JUMP_RESET, "holdMaxMs", () -> jumpReset.holdMaxMs, v -> jumpReset.holdMaxMs = v, save);
+        jumpReset.onGroundOnly = bool(CAT_JUMP_RESET, "onGroundOnly", jumpReset.onGroundOnly, save);
+        jumpReset.sprintingOnly = bool(CAT_JUMP_RESET, "sprintingOnly", jumpReset.sprintingOnly, save);
+        jumpReset.forwardOnly = bool(CAT_JUMP_RESET, "forwardOnly", jumpReset.forwardOnly, save);
+        jumpReset.allowInMenu = bool(CAT_JUMP_RESET, "allowInMenu", jumpReset.allowInMenu, save);
     }
 
     private static void syncClicker(String cat, Clicker c, boolean save) {

@@ -4,6 +4,7 @@ import com.icysnex.ghosttap.config.ConfigHandler;
 import com.icysnex.ghosttap.core.ActivationMode;
 import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.analytics.Analytics;
+import com.icysnex.ghosttap.core.analytics.JumpResetTracker;
 import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
@@ -99,7 +100,7 @@ public class GuiGhostTap extends GuiScreen {
         tabs.add(new Tab("General", single(buildGeneralRows())));
         tabs.add(buildClickerTab(Clicker.LEFT));
         tabs.add(buildClickerTab(Clicker.RIGHT));
-        tabs.add(new Tab("Jump Reset", single(buildJumpResetRows())));
+        tabs.add(buildJumpResetTab());
         tabs.add(new Tab("HUD", single(buildHudRows())));
 
         layoutContent();
@@ -131,6 +132,14 @@ public class GuiGhostTap extends GuiScreen {
         subs.add(new SubTab("Filters", buildFiltersRows(c, left)));
         subs.add(new SubTab("Analytics", buildAnalyticsRows(c)));
         return new Tab(left ? "Left" : "Right", subs);
+    }
+
+    private Tab buildJumpResetTab() {
+        List<SubTab> subs = new ArrayList<>();
+        subs.add(new SubTab("Timing", buildJumpResetRows()));
+        subs.add(new SubTab("Filters", buildJumpResetConfigRows()));
+        subs.add(new SubTab("Analytics", buildJumpResetAnalyticsRows()));
+        return new Tab("Jump Reset", subs);
     }
 
     private List<Object> buildCpsRows(Clicker c) {
@@ -360,7 +369,7 @@ public class GuiGhostTap extends GuiScreen {
                 button("Import", "Load HUD settings from the clipboard.", this::importHud)));
 
         r.add("Analytics");
-        r.add(toggle("Enabled", "Record click data for stats and export.",
+        r.add(toggle("Enabled", "Record click and Jump Reset data for stats and export.",
                 () -> Tracker.enabled, v -> Tracker.enabled = v));
 
         r.add("Server");
@@ -387,14 +396,14 @@ public class GuiGhostTap extends GuiScreen {
 
         r.add("Delay (ms)");
         r.add(slider("Mean", 0, 500, 0, false,
-                "Average delay before the jump reset.",
+                "Average reaction delay after knockback arrives.\nA delay that crosses the input sample adds a full game tick.",
                 () -> jumpReset.delayMeanMs, v -> {
                     jumpReset.delayMeanMs = v;
                     if (v < jumpReset.delayMinMs) jumpReset.delayMinMs = v;
                     if (v > jumpReset.delayMaxMs) jumpReset.delayMaxMs = v;
                 }));
         r.add(slider("Std deviation", 0, 150, 0, false,
-                "How much the delay randomly varies around the mean.",
+                "How much reaction delay randomly varies around the Mean.",
                 () -> jumpReset.delayStandardDeviationMs, v -> jumpReset.delayStandardDeviationMs = v));
         r.add(slider("Min", 0, 500, 0, false,
                 "Shortest allowed delay.",
@@ -436,6 +445,25 @@ public class GuiGhostTap extends GuiScreen {
                     if (jumpReset.holdMinMs > v) jumpReset.holdMinMs = v;
                     if (jumpReset.holdMeanMs > v) jumpReset.holdMeanMs = v;
                 }));
+
+        return r;
+    }
+
+    private List<Object> buildJumpResetConfigRows() {
+        List<Object> r = new ArrayList<>();
+        AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
+
+        r.add("Movement");
+        r.add(toggle("On ground only", "Only press Space when Minecraft can begin a normal jump.",
+                () -> jumpReset.onGroundOnly, v -> jumpReset.onGroundOnly = v));
+        r.add(toggle("Sprinting only", "Only jump while sprinting, which supplies the forward jump impulse.",
+                () -> jumpReset.sprintingOnly, v -> jumpReset.sprintingOnly = v));
+        r.add(toggle("Moving forward only", "Only jump while forward movement is active.",
+                () -> jumpReset.forwardOnly, v -> jumpReset.forwardOnly = v));
+
+        r.add("Rules");
+        r.add(toggle("In menus", "Allow the Space press while a screen such as inventory or chat is open.",
+                () -> jumpReset.allowInMenu, v -> jumpReset.allowInMenu = v));
 
         return r;
     }
@@ -529,6 +557,30 @@ public class GuiGhostTap extends GuiScreen {
                         () -> Analytics.export(clicker)),
                 button("Reset", "Delete only this clicker's recorded analytics data.",
                         () -> Analytics.clear(clicker))));
+
+        return r;
+    }
+
+    private List<Object> buildJumpResetAnalyticsRows() {
+        List<Object> r = new ArrayList<>();
+        JumpResetTracker tracker = JumpResetTracker.INSTANCE;
+
+        r.add("Jump Reset");
+        r.add(stat("Recorded hits", "Correlated hurt and velocity events recorded this session.",
+                () -> String.valueOf(tracker.size())));
+        r.add(stat("Triggered", "Recorded events that passed every filter and Chance.",
+                () -> String.valueOf(tracker.triggered())));
+        r.add(stat("Same input tick", "Triggered presses observed before the hit's next movement input sample.",
+                () -> tracker.observedPresses() == 0 ? "--" : String.format("%.1f%%", tracker.sameTickPercent())));
+        r.add(stat("Average delay", "Average measured time from velocity handling to synthetic Space-down.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averagePressDelayMs())));
+
+        r.add("Actions");
+        r.add(new GuiButtonRow("Analytics",
+                button("Export CSV", "Save recorded Jump Reset decisions and timings to a CSV file on the Desktop.",
+                        Analytics::exportJumpReset),
+                button("Reset", "Delete only the recorded Jump Reset analytics data.",
+                        Analytics::clearJumpReset)));
 
         return r;
     }

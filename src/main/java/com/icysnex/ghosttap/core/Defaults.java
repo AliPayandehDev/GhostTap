@@ -64,16 +64,21 @@ public final class Defaults {
     public static final Profile RIGHT = new Profile();
 
     public static final class JumpResetProfile {
-        public double chance = 1.0;
-        public double delayMeanMs = 50;
-        public double delayStandardDeviationMs = 12;
-        public double delayMinMs = 25;
-        public double delayMaxMs = 100;
+        public double chance = 0.85;
+        public double delayMeanMs = 25;
+        public double delayStandardDeviationMs = 15;
+        public double delayMinMs = 15;
+        public double delayMaxMs = 50;
 
         public double holdMeanMs = 75;
-        public double holdStandardDeviationMs = 12;
+        public double holdStandardDeviationMs = 15;
         public double holdMinMs = 50;
-        public double holdMaxMs = 125;
+        public double holdMaxMs = 100;
+
+        public boolean onGroundOnly = true;
+        public boolean sprintingOnly = true;
+        public boolean forwardOnly = true;
+        public boolean allowInMenu = false;
     }
 
     public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();
