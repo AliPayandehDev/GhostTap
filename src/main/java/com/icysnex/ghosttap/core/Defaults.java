@@ -69,6 +69,11 @@ public final class Defaults {
         public double delayStandardDeviationMs = 12;
         public double delayMinMs = 25;
         public double delayMaxMs = 100;
+
+        public double holdMeanMs = 75;
+        public double holdStandardDeviationMs = 12;
+        public double holdMinMs = 50;
+        public double holdMaxMs = 125;
     }
 
     public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();

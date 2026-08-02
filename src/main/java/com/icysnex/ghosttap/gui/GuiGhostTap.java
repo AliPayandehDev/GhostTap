@@ -411,6 +411,32 @@ public class GuiGhostTap extends GuiScreen {
                     if (jumpReset.delayMeanMs > v) jumpReset.delayMeanMs = v;
                 }));
 
+        r.add("Hold (ms)");
+        r.add(slider("Mean", 1, 500, 0, false,
+                "Average time Space is held down.",
+                () -> jumpReset.holdMeanMs, v -> {
+                    jumpReset.holdMeanMs = v;
+                    if (v < jumpReset.holdMinMs) jumpReset.holdMinMs = v;
+                    if (v > jumpReset.holdMaxMs) jumpReset.holdMaxMs = v;
+                }));
+        r.add(slider("Std deviation", 0, 150, 0, false,
+                "How much the hold time randomly varies around the mean.",
+                () -> jumpReset.holdStandardDeviationMs, v -> jumpReset.holdStandardDeviationMs = v));
+        r.add(slider("Min", 1, 500, 0, false,
+                "Shortest allowed hold time.",
+                () -> jumpReset.holdMinMs, v -> {
+                    jumpReset.holdMinMs = v;
+                    if (jumpReset.holdMaxMs < v) jumpReset.holdMaxMs = v;
+                    if (jumpReset.holdMeanMs < v) jumpReset.holdMeanMs = v;
+                }));
+        r.add(slider("Max", 1, 500, 0, false,
+                "Longest allowed hold time.",
+                () -> jumpReset.holdMaxMs, v -> {
+                    jumpReset.holdMaxMs = v;
+                    if (jumpReset.holdMinMs > v) jumpReset.holdMinMs = v;
+                    if (jumpReset.holdMeanMs > v) jumpReset.holdMeanMs = v;
+                }));
+
         return r;
     }
 
