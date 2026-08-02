@@ -5,7 +5,7 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.input.Cps;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
-import com.icysnex.ghosttap.core.wtap.AutoWTap;
+import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
@@ -82,8 +82,11 @@ public class ClickerHUD {
         if (ConfigHandler.hudShowJumpResetStatus)
             lines.add(Line.status("Jump reset", AutoJumpReset.INSTANCE.isEnabled()));
 
-        if (ConfigHandler.hudShowWTapStatus)
-            lines.add(Line.status("W-Tap", AutoWTap.INSTANCE.isEnabled()));
+        if (ConfigHandler.hudShowSprintResetStatus) {
+            AutoSprintReset.HudSnapshot status = AutoSprintReset.INSTANCE.hudSnapshot();
+            lines.add(Line.status("Sprint Reset", status.enabled, status.active,
+                    status.state, status.detail));
+        }
 
         return lines;
     }
@@ -130,26 +133,35 @@ public class ClickerHUD {
         private final String name;
         private final boolean on;
         private final boolean clicking;
+        private final String activity;
         private final String mode;
 
-        private Line(String plain, String name, boolean on, boolean clicking, String mode) {
+        private Line(String plain, String name, boolean on, boolean clicking,
+                     String activity, String mode) {
             this.plain = plain;
             this.name = name;
             this.on = on;
             this.clicking = clicking;
+            this.activity = activity;
             this.mode = mode;
         }
 
         static Line plain(String text) {
-            return new Line(text, null, false, false, null);
+            return new Line(text, null, false, false, null, null);
         }
 
         static Line status(String name, boolean on, boolean clicking, String mode) {
-            return new Line(null, name, on, clicking, mode);
+            return new Line(null, name, on, clicking,
+                    clicking ? "FIRE" : "IDLE", mode);
+        }
+
+        static Line status(String name, boolean on, boolean active,
+                           String activity, String detail) {
+            return new Line(null, name, on, active, activity, detail);
         }
 
         static Line status(String name, boolean on) {
-            return new Line(null, name, on, false, null);
+            return new Line(null, name, on, false, null, null);
         }
 
         int width(FontRenderer fr) {
@@ -159,7 +171,7 @@ public class ClickerHUD {
             if (mode == null)
                 return width;
             return width
-                    + fr.getStringWidth(" " + clickText()) + fr.getStringWidth(" (" + mode + ")");
+                    + fr.getStringWidth(" " + activity) + fr.getStringWidth(" (" + mode + ")");
         }
 
         void draw(FontRenderer fr, int x, int y, int color) {
@@ -174,17 +186,13 @@ public class ClickerHUD {
             if (mode == null)
                 return;
             int x3 = x2 + fr.getStringWidth(onText());
-            fr.drawStringWithShadow(" " + clickText(), x3, y, clicking ? GREEN : GRAY);
-            int x4 = x3 + fr.getStringWidth(" " + clickText());
+            fr.drawStringWithShadow(" " + activity, x3, y, clicking ? GREEN : GRAY);
+            int x4 = x3 + fr.getStringWidth(" " + activity);
             fr.drawStringWithShadow(" (" + mode + ")", x4, y, color);
         }
 
         private String onText() {
             return on ? "ON" : "OFF";
-        }
-
-        private String clickText() {
-            return clicking ? "FIRE" : "IDLE";
         }
     }
 }

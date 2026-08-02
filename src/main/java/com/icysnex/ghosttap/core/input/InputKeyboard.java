@@ -28,6 +28,7 @@ public final class InputKeyboard {
     public static final ConcurrentLinkedQueue<Event> pendingEvents = new ConcurrentLinkedQueue<>();
     public static final AtomicIntegerArray realStates = new AtomicIntegerArray(KEY_COUNT);
     public static final AtomicIntegerArray overrideStates = new AtomicIntegerArray(KEY_COUNT);
+    public static final AtomicIntegerArray bufferedOverrides = new AtomicIntegerArray(KEY_COUNT);
 
     // Published by the mixin after every hardware poll.
     public static volatile byte realSpace = STATE_UP;
@@ -42,30 +43,47 @@ public final class InputKeyboard {
     }
 
     public static void forceDown(int key) {
-        setOverride(key, STATE_DOWN);
+        setOverride(key, STATE_DOWN, true);
     }
 
     public static void forceUp(int key) {
-        setOverride(key, STATE_UP);
+        setOverride(key, STATE_UP, true);
     }
 
     public static void release(int key) {
-        setOverride(key, STATE_PASSTHROUGH);
+        setOverride(key, STATE_PASSTHROUGH, true);
     }
 
-    private static synchronized void setOverride(int key, int state) {
+    // Sprint Reset changes Minecraft's KeyBinding directly at a client-tick boundary.
+    // These polled-only variants mirror that state to Keyboard.isKeyDown users
+    // such as Keystrokes without feeding the same edge through Keyboard.next().
+    public static void forceDownPolled(int key) {
+        setOverride(key, STATE_DOWN, false);
+    }
+
+    public static void forceUpPolled(int key) {
+        setOverride(key, STATE_UP, false);
+    }
+
+    public static void releasePolled(int key) {
+        setOverride(key, STATE_PASSTHROUGH, false);
+    }
+
+    private static synchronized void setOverride(int key, int state, boolean buffered) {
         if (!valid(key))
             return;
 
         int previousOverride = overrideStates.get(key);
-        if (previousOverride == state)
+        int nextBuffered = buffered ? 1 : 0;
+        if (previousOverride == state && bufferedOverrides.get(key) == nextBuffered)
             return;
 
         int real = realStates.get(key);
         int previousEffective = previousOverride == STATE_PASSTHROUGH ? real : previousOverride;
         int nextEffective = state == STATE_PASSTHROUGH ? real : state;
+        bufferedOverrides.set(key, nextBuffered);
         overrideStates.set(key, state);
-        if (previousEffective != nextEffective)
+        if (buffered && previousEffective != nextEffective)
             pendingEvents.add(new Event(key, (byte) nextEffective));
     }
 

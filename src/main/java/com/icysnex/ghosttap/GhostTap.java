@@ -3,7 +3,7 @@ package com.icysnex.ghosttap;
 import com.icysnex.ghosttap.config.ConfigHandler;
 import com.icysnex.ghosttap.events.GhostTapKeybindListener;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
-import com.icysnex.ghosttap.core.wtap.AutoWTap;
+import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
 import com.icysnex.ghosttap.hud.ClickerHUD;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
@@ -29,7 +29,7 @@ public class GhostTap {
     public void init(FMLInitializationEvent event) {
         MinecraftForge.EVENT_BUS.register(new GhostTapKeybindListener());
         MinecraftForge.EVENT_BUS.register(AutoJumpReset.INSTANCE);
-        MinecraftForge.EVENT_BUS.register(AutoWTap.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(AutoSprintReset.INSTANCE);
         MinecraftForge.EVENT_BUS.register(new ClickerHUD());
     }
 }

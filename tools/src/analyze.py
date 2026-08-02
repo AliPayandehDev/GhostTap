@@ -172,7 +172,7 @@ def plot_jump_reset(df, file_path, params):
     return fig
 
 
-def plot_w_tap(df, file_path, params):
+def plot_sprint_reset(df, file_path, params):
     # Keep exports from the earlier W-only analytics schema readable.
     df = df.rename(columns={
         "ActualReleaseDelayMS": "ActualActionDelayMS",
@@ -182,14 +182,30 @@ def plot_w_tap(df, file_path, params):
     })
     if "Mode" not in df.columns:
         df["Mode"] = "W_TAP"
+    if "ConfirmationDelayMS" not in df.columns:
+        df["ConfirmationDelayMS"] = -1
+    if "AttackGap" not in df.columns:
+        if "TargetGap" in df.columns:
+            df["AttackGap"] = df["TargetGap"]
+        elif "TargetDistance" in df.columns:
+            df["AttackGap"] = df["TargetDistance"]
+    if "ConfirmedGap" not in df.columns:
+        df["ConfirmedGap"] = df["AttackGap"] if "AttackGap" in df.columns else float("nan")
+    if "Backstep" not in df.columns:
+        df["Backstep"] = False
     df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
     triggered = df[df["Outcome"] == "TRIGGERED"]
+    confirmed = triggered[triggered["ConfirmationDelayMS"] >= 0]
     started = triggered[triggered["ActualActionDelayMS"] >= 0]
     completed = triggered[triggered["ActualDurationMS"] >= 0]
 
     trigger_rate = len(triggered) * 100.0 / len(df) if len(df) else 0
+    average_confirmation = confirmed["ConfirmationDelayMS"].mean() if len(confirmed) else 0
     average_delay = started["ActualActionDelayMS"].mean() if len(started) else 0
     average_duration = completed["ActualDurationMS"].mean() if len(completed) else 0
+    average_gap = confirmed["ConfirmedGap"].mean() if len(confirmed) else 0
+    average_multiplier = completed["DurationMultiplier"].mean() if "DurationMultiplier" in completed.columns else 1
+    backsteps = triggered["Backstep"].astype(str).str.lower().eq("true").sum()
     average_decision = df["DecisionUS"].mean() if len(df) else 0
     session_time = df["TimeSeconds"].max() if len(df) else 0
     modes = ", ".join(sorted(df["Mode"].dropna().unique()))
@@ -197,14 +213,16 @@ def plot_w_tap(df, file_path, params):
     session_stats = (
         f"Session: {session_time:.1f}s | Attacks: {len(df)} | Triggered: {len(triggered)} "
         f"({trigger_rate:.1f}%) | Modes: {modes}\n"
-        f"Avg actual delay: {average_delay:.3f}ms | Avg duration: {average_duration:.3f}ms | "
+        f"Avg confirmation: {average_confirmation:.3f}ms | Avg action delay: {average_delay:.3f}ms | "
+        f"Avg duration: {average_duration:.3f}ms | Backsteps: {backsteps}\n"
+        f"Avg horizontal gap: {average_gap:.2f} | Avg duration multiplier: {average_multiplier:.3f}x | "
         f"Avg decision cost: {average_decision:.3f}us"
     )
     header_text = f"{session_stats}\n---\n" + "\n".join(params)
 
     fig = plt.figure(figsize=(16, 14))
     gs = gridspec.GridSpec(3, 2, height_ratios=[1.15, 3, 3], figure=fig)
-    fig.suptitle(f"GhostTap W-Tap Analytics: {os.path.basename(file_path)}",
+    fig.suptitle(f"GhostTap Sprint Reset Analytics: {os.path.basename(file_path)}",
                  fontsize=18, fontweight="bold", y=0.99)
 
     timeline_axis = fig.add_subplot(gs[1, 0])
@@ -219,12 +237,17 @@ def plot_w_tap(df, file_path, params):
         )
         timeline_axis.scatter(
             started["TimeSeconds"], started["ScheduledDelayMS"],
-            s=14, alpha=0.45, label="Extra delay", color="tab:blue",
+            s=14, alpha=0.45, label="Delay", color="tab:blue",
         )
+        if len(confirmed):
+            timeline_axis.scatter(
+                confirmed["TimeSeconds"], confirmed["ConfirmationDelayMS"],
+                s=14, alpha=0.45, label="Hit confirmation", color="tab:green",
+            )
         timeline_axis.legend(loc="upper right")
     else:
         timeline_axis.text(0.5, 0.5, "No started reset actions", ha="center", va="center")
-    timeline_axis.set_title("Attack-relative Reset Timing")
+    timeline_axis.set_title("Attack-relative Confirmation and Reset Timing")
     timeline_axis.set_xlabel("Session time (s)")
     timeline_axis.set_ylabel("Delay (ms)")
 
@@ -237,9 +260,27 @@ def plot_w_tap(df, file_path, params):
     delay_axis.set_title("Actual Attack-to-Action Delay")
     delay_axis.set_xlabel("Delay (ms)")
 
-    safe_histplot(completed["ActualDurationMS"], duration_axis, "tab:green")
-    duration_axis.set_title("Actual Tap Duration")
-    duration_axis.set_xlabel("Duration (ms)")
+    response = completed.dropna(subset=["ConfirmedGap"])
+    if len(response) and "TargetDurationTicks" in response.columns:
+        backstep_mask = response["Backstep"].astype(str).str.lower().eq("true")
+        duration_axis.scatter(
+            response.loc[~backstep_mask, "ConfirmedGap"],
+            response.loc[~backstep_mask, "TargetDurationTicks"],
+            s=22, alpha=0.7, label="Reset", color="tab:green",
+        )
+        duration_axis.scatter(
+            response.loc[backstep_mask, "ConfirmedGap"],
+            response.loc[backstep_mask, "TargetDurationTicks"],
+            s=28, alpha=0.8, label="Backstep", color="tab:red",
+        )
+        duration_axis.legend(loc="upper right")
+        duration_axis.set_title("Response by Confirmed Horizontal Gap")
+        duration_axis.set_xlabel("Hitbox gap (blocks)")
+        duration_axis.set_ylabel("Target duration (ticks)")
+    else:
+        safe_histplot(completed["ActualDurationMS"], duration_axis, "tab:green")
+        duration_axis.set_title("Actual Tap Duration")
+        duration_axis.set_xlabel("Duration (ms)")
 
     add_header(fig, gs[0, :], header_text)
     return fig
@@ -258,7 +299,7 @@ def run_analysis():
         return 1
 
     plt.style.use("seaborn-v0_8-darkgrid")
-    is_w_tap = {
+    is_sprint_reset = {
         "Outcome", "Mode", "ActualActionDelayMS", "ActualDurationMS", "DecisionUS"
     }.issubset(df.columns) or {
         "Outcome", "ActualReleaseDelayMS", "ActualReleaseMS", "DecisionUS"
@@ -266,8 +307,8 @@ def run_analysis():
     is_jump_reset = {
         "Outcome", "ActualPressDelayMS", "InputTickOffset", "DecisionUS"
     }.issubset(df.columns)
-    if is_w_tap:
-        fig = plot_w_tap(df, file_path, params)
+    if is_sprint_reset:
+        fig = plot_sprint_reset(df, file_path, params)
     elif is_jump_reset:
         fig = plot_jump_reset(df, file_path, params)
     else:

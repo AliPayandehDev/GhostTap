@@ -7,8 +7,8 @@ import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.click.ClickerGates;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
-import com.icysnex.ghosttap.core.wtap.AutoWTap;
-import com.icysnex.ghosttap.core.wtap.WTapMode;
+import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
+import com.icysnex.ghosttap.core.sprintreset.SprintResetMode;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
 
@@ -22,7 +22,8 @@ public class ConfigHandler {
     private static final String CAT_LEFT = "left_clicker";
     private static final String CAT_RIGHT = "right_clicker";
     private static final String CAT_JUMP_RESET = "auto_jump_reset";
-    private static final String CAT_W_TAP = "auto_w_tap";
+    // Keep the legacy category name so existing Forge configs retain their values.
+    private static final String CAT_SPRINT_RESET = "auto_w_tap";
     private static final String CAT_KEYS = "keys";
     private static final String CAT_HUD = "hud";
 
@@ -33,7 +34,7 @@ public class ConfigHandler {
     public static int toggleLeftKey = Defaults.KEY_LEFT;
     public static int toggleRightKey = Defaults.KEY_RIGHT;
     public static int toggleJumpResetKey = Defaults.KEY_JUMP_RESET;
-    public static int toggleWTapKey = Defaults.KEY_W_TAP;
+    public static int toggleSprintResetKey = Defaults.KEY_SPRINT_RESET;
     public static ActivationMode leftMode = Defaults.MODE_LEFT;
     public static ActivationMode rightMode = Defaults.MODE_RIGHT;
 
@@ -50,7 +51,7 @@ public class ConfigHandler {
     public static boolean hudCpsRight = Defaults.HUD_CPS_RIGHT;
     public static boolean hudShowStatus = Defaults.HUD_STATUS;
     public static boolean hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
-    public static boolean hudShowWTapStatus = Defaults.HUD_W_TAP_STATUS;
+    public static boolean hudShowSprintResetStatus = Defaults.HUD_SPRINT_RESET_STATUS;
     public static boolean hudBackground = Defaults.HUD_BACKGROUND;
     public static int hudPadding = Defaults.HUD_PADDING;
     public static int hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -75,7 +76,7 @@ public class ConfigHandler {
         hudCpsRight = Defaults.HUD_CPS_RIGHT;
         hudShowStatus = Defaults.HUD_STATUS;
         hudShowJumpResetStatus = Defaults.HUD_JUMP_RESET_STATUS;
-        hudShowWTapStatus = Defaults.HUD_W_TAP_STATUS;
+        hudShowSprintResetStatus = Defaults.HUD_SPRINT_RESET_STATUS;
         hudBackground = Defaults.HUD_BACKGROUND;
         hudPadding = Defaults.HUD_PADDING;
         hudTextColor = Defaults.HUD_TEXT_COLOR;
@@ -96,7 +97,7 @@ public class ConfigHandler {
         ConfigCodec.put(m, "cpsRight", hudCpsRight);
         ConfigCodec.put(m, "showStatus", hudShowStatus);
         ConfigCodec.put(m, "showJumpResetStatus", hudShowJumpResetStatus);
-        ConfigCodec.put(m, "showWTapStatus", hudShowWTapStatus);
+        ConfigCodec.put(m, "showWTapStatus", hudShowSprintResetStatus);
         ConfigCodec.put(m, "background", hudBackground);
         ConfigCodec.put(m, "padding", hudPadding);
         ConfigCodec.put(m, "textColor", hudTextColor);
@@ -119,7 +120,7 @@ public class ConfigHandler {
         hudCpsRight = ConfigCodec.flag(m, "cpsRight", hudCpsRight);
         hudShowStatus = ConfigCodec.flag(m, "showStatus", hudShowStatus);
         hudShowJumpResetStatus = ConfigCodec.flag(m, "showJumpResetStatus", hudShowJumpResetStatus);
-        hudShowWTapStatus = ConfigCodec.flag(m, "showWTapStatus", hudShowWTapStatus);
+        hudShowSprintResetStatus = ConfigCodec.flag(m, "showWTapStatus", hudShowSprintResetStatus);
         hudBackground = ConfigCodec.flag(m, "background", hudBackground);
         hudPadding = ConfigCodec.integer(m, "padding", hudPadding);
         hudTextColor = ConfigCodec.integer(m, "textColor", hudTextColor);
@@ -156,13 +157,13 @@ public class ConfigHandler {
         syncGates(CAT_RIGHT, Clicker.RIGHT.gates, save);
 
         syncJumpReset(save);
-        syncWTap(save);
+        syncSprintReset(save);
 
         openGuiKey = key(CAT_KEYS, "openGui", openGuiKey, save);
         toggleLeftKey = key(CAT_KEYS, "toggleLeft", toggleLeftKey, save);
         toggleRightKey = key(CAT_KEYS, "toggleRight", toggleRightKey, save);
         toggleJumpResetKey = key(CAT_KEYS, "toggleJumpReset", toggleJumpResetKey, save);
-        toggleWTapKey = key(CAT_KEYS, "toggleWTap", toggleWTapKey, save);
+        toggleSprintResetKey = key(CAT_KEYS, "toggleWTap", toggleSprintResetKey, save);
 
         leftMode = mode(CAT_KEYS, "leftMode", leftMode, save);
         rightMode = mode(CAT_KEYS, "rightMode", rightMode, save);
@@ -182,7 +183,7 @@ public class ConfigHandler {
         hudCpsRight = bool(CAT_HUD, "cpsRight", hudCpsRight, save);
         hudShowStatus = bool(CAT_HUD, "showStatus", hudShowStatus, save);
         hudShowJumpResetStatus = bool(CAT_HUD, "showJumpResetStatus", hudShowJumpResetStatus, save);
-        hudShowWTapStatus = bool(CAT_HUD, "showWTapStatus", hudShowWTapStatus, save);
+        hudShowSprintResetStatus = bool(CAT_HUD, "showWTapStatus", hudShowSprintResetStatus, save);
         hudBackground = bool(CAT_HUD, "background", hudBackground, save);
         hudPadding = integer(CAT_HUD, "padding", hudPadding, save);
         hudTextColor = integer(CAT_HUD, "textColor", hudTextColor, save);
@@ -220,26 +221,26 @@ public class ConfigHandler {
         jumpReset.allowInMenu = bool(CAT_JUMP_RESET, "allowInMenu", jumpReset.allowInMenu, save);
     }
 
-    private static void syncWTap(boolean save) {
-        AutoWTap wTap = AutoWTap.INSTANCE;
-        wTap.setEnabled(bool(CAT_W_TAP, "enabled", wTap.isEnabled(), save));
-        wTap.mode = wTapMode(CAT_W_TAP, "mode", wTap.mode, save);
-        bind(CAT_W_TAP, "chance", () -> wTap.chance, v -> wTap.chance = v, save);
-        bind(CAT_W_TAP, "delayMinMs", () -> wTap.delayMinMs, v -> wTap.delayMinMs = v, save);
-        bind(CAT_W_TAP, "delayMaxMs", () -> wTap.delayMaxMs, v -> wTap.delayMaxMs = v, save);
-        bind(CAT_W_TAP, "durationMeanMs", () -> wTap.durationMeanMs, v -> wTap.durationMeanMs = v, save);
-        bind(CAT_W_TAP, "durationStandardDeviationMs", () -> wTap.durationStandardDeviationMs, v -> wTap.durationStandardDeviationMs = v, save);
-        bind(CAT_W_TAP, "durationMinMs", () -> wTap.durationMinMs, v -> wTap.durationMinMs = v, save);
-        bind(CAT_W_TAP, "durationMaxMs", () -> wTap.durationMaxMs, v -> wTap.durationMaxMs = v, save);
-        bind(CAT_W_TAP, "cooldownMeanMs", () -> wTap.cooldownMeanMs, v -> wTap.cooldownMeanMs = v, save);
-        bind(CAT_W_TAP, "cooldownStandardDeviationMs", () -> wTap.cooldownStandardDeviationMs, v -> wTap.cooldownStandardDeviationMs = v, save);
-        bind(CAT_W_TAP, "cooldownMinMs", () -> wTap.cooldownMinMs, v -> wTap.cooldownMinMs = v, save);
-        bind(CAT_W_TAP, "cooldownMaxMs", () -> wTap.cooldownMaxMs, v -> wTap.cooldownMaxMs = v, save);
-        wTap.playersOnly = bool(CAT_W_TAP, "playersOnly", wTap.playersOnly, save);
-        wTap.weapons = bool(CAT_W_TAP, "catWeapons", wTap.weapons, save);
-        wTap.tools = bool(CAT_W_TAP, "catTools", wTap.tools, save);
-        wTap.blocks = bool(CAT_W_TAP, "catBlocks", wTap.blocks, save);
-        wTap.other = bool(CAT_W_TAP, "catOther", wTap.other, save);
+    private static void syncSprintReset(boolean save) {
+        AutoSprintReset sprintReset = AutoSprintReset.INSTANCE;
+        sprintReset.setEnabled(bool(CAT_SPRINT_RESET, "enabled", sprintReset.isEnabled(), save));
+        sprintReset.mode = sprintResetMode(CAT_SPRINT_RESET, "mode", sprintReset.mode, save);
+        bind(CAT_SPRINT_RESET, "chance", () -> sprintReset.chance, v -> sprintReset.chance = v, save);
+        bind(CAT_SPRINT_RESET, "delayMinMs", () -> sprintReset.delayMinMs, v -> sprintReset.delayMinMs = v, save);
+        bind(CAT_SPRINT_RESET, "delayMaxMs", () -> sprintReset.delayMaxMs, v -> sprintReset.delayMaxMs = v, save);
+        bind(CAT_SPRINT_RESET, "durationMeanTicks", () -> sprintReset.durationMeanTicks, v -> sprintReset.durationMeanTicks = v, save);
+        bind(CAT_SPRINT_RESET, "durationStandardDeviationTicks", () -> sprintReset.durationStandardDeviationTicks, v -> sprintReset.durationStandardDeviationTicks = v, save);
+        bind(CAT_SPRINT_RESET, "durationMinTicks", () -> sprintReset.durationMinTicks, v -> sprintReset.durationMinTicks = v, save);
+        bind(CAT_SPRINT_RESET, "durationMaxTicks", () -> sprintReset.durationMaxTicks, v -> sprintReset.durationMaxTicks = v, save);
+        bind(CAT_SPRINT_RESET, "durationAdaptiveness", () -> sprintReset.durationAdaptiveness, v -> sprintReset.durationAdaptiveness = v, save);
+        bind(CAT_SPRINT_RESET, "durationCloseMultiplier", () -> sprintReset.durationCloseMultiplier, v -> sprintReset.durationCloseMultiplier = v, save);
+        sprintReset.spacingAssist = bool(CAT_SPRINT_RESET, "spacingAssist", sprintReset.spacingAssist, save);
+        bind(CAT_SPRINT_RESET, "spacingGap", () -> sprintReset.spacingGap, v -> sprintReset.spacingGap = v, save);
+        sprintReset.playersOnly = bool(CAT_SPRINT_RESET, "playersOnly", sprintReset.playersOnly, save);
+        sprintReset.weapons = bool(CAT_SPRINT_RESET, "catWeapons", sprintReset.weapons, save);
+        sprintReset.tools = bool(CAT_SPRINT_RESET, "catTools", sprintReset.tools, save);
+        sprintReset.blocks = bool(CAT_SPRINT_RESET, "catBlocks", sprintReset.blocks, save);
+        sprintReset.other = bool(CAT_SPRINT_RESET, "catOther", sprintReset.other, save);
     }
 
     private static void syncClicker(String cat, Clicker c, boolean save) {
@@ -342,7 +343,7 @@ public class ConfigHandler {
         }
     }
 
-    private static WTapMode wTapMode(String cat, String name, WTapMode current, boolean save) {
+    private static SprintResetMode sprintResetMode(String cat, String name, SprintResetMode current, boolean save) {
         Property p = config.get(cat, name, current.name(), "Sprint-reset mode: W_TAP, S_TAP or SHIFT_TAP");
         if (save) {
             p.set(current.name());
@@ -350,7 +351,7 @@ public class ConfigHandler {
         }
 
         try {
-            return WTapMode.valueOf(p.getString());
+            return SprintResetMode.valueOf(p.getString());
         } catch (IllegalArgumentException e) {
             return current;
         }

@@ -45,7 +45,8 @@ public abstract class MixinLwjglInputKeyboardInject {
             int override = InputKeyboard.overrideStates.get(key);
             if (override != InputKeyboard.STATE_PASSTHROUGH) {
                 // Keep a native edge from leaking through an active override.
-                if (previousReal != real && override != real)
+                if (InputKeyboard.bufferedOverrides.get(key) != 0
+                        && previousReal != real && override != real)
                     InputKeyboard.pendingEvents.add(new InputKeyboard.Event(key, (byte) override));
                 keyDownBuffer.put(key, (byte) override);
             }

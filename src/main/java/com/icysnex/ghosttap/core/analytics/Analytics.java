@@ -2,7 +2,7 @@ package com.icysnex.ghosttap.core.analytics;
 
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
-import com.icysnex.ghosttap.core.wtap.AutoWTap;
+import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
 import com.icysnex.ghosttap.utils.FileIO;
 import com.icysnex.ghosttap.utils.Notice;
 
@@ -32,9 +32,9 @@ public class Analytics {
         Notice.show("Cleared Jump Reset analytics data.");
     }
 
-    public static void clearWTap() {
-        WTapTracker.INSTANCE.clear();
-        Notice.show("Cleared W-Tap analytics data.");
+    public static void clearSprintReset() {
+        SprintResetTracker.INSTANCE.clear();
+        Notice.show("Cleared Sprint Reset analytics data.");
     }
 
     public static void export() {
@@ -108,48 +108,60 @@ public class Analytics {
         });
     }
 
-    public static void exportWTap() {
-        WTapTracker tracker = WTapTracker.INSTANCE;
+    public static void exportSprintReset() {
+        SprintResetTracker tracker = SprintResetTracker.INSTANCE;
         if (tracker.size() <= 0) {
-            Notice.show("No W-Tap analytics data. Enable tracking and attack first.");
+            Notice.show("No Sprint Reset analytics data. Enable tracking and attack first.");
             return;
         }
 
-        String fileName = "analytics_w_tap_" + System.currentTimeMillis() + ".csv";
-        List<WTapData> snapshot = tracker.copy();
-        AutoWTap wTap = AutoWTap.INSTANCE;
+        String fileName = "analytics_sprint_reset_" + System.currentTimeMillis() + ".csv";
+        List<SprintResetData> snapshot = tracker.copy();
+        AutoSprintReset sprintReset = AutoSprintReset.INSTANCE;
 
-        Notice.show("Exporting W-Tap analytics...");
+        Notice.show("Exporting Sprint Reset analytics...");
         FileIO.saveAsync(fileName, writer -> {
-            writer.println("# --- START METADATA (W-TAP) ---");
-            writer.printf("# Mode: %s%n", wTap.mode.label);
-            writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", wTap.chance * 100);
-            writer.printf("# Reference baseline: delay=0ms, tapDuration=%dms, cooldown=%d client ticks (~%dms)%n",
-                    AutoWTap.BASELINE_DURATION_MS, AutoWTap.BASELINE_COOLDOWN_TICKS,
-                    AutoWTap.BASELINE_COOLDOWN_TICKS * 50);
+            writer.println("# --- START METADATA (SPRINT RESET) ---");
+            writer.printf("# Mode: %s%n", sprintReset.mode.label);
+            writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", sprintReset.chance * 100);
+            writer.printf(Locale.ROOT, "# Delay: uniform min=%.1fms, max=%.1fms%n",
+                    sprintReset.delayMinMs, sprintReset.delayMaxMs);
+            writer.printf(Locale.ROOT, "# Tap duration: mean=%.2ft, variation=%.2ft, min=%.1ft, max=%.1ft%n",
+                    sprintReset.durationMeanTicks, sprintReset.durationStandardDeviationTicks,
+                    sprintReset.durationMinTicks, sprintReset.durationMaxTicks);
+            writer.printf(Locale.ROOT, "# Duration adaptation: strength=%.1f%%, close multiplier=%.1f%%; never shortens the baseline%n",
+                    sprintReset.durationAdaptiveness * 100,
+                    sprintReset.durationCloseMultiplier * 100);
+            writer.printf(Locale.ROOT, "# Spacing assist: enabled=%s, desired horizontal hitbox gap=%.2f%n",
+                    sprintReset.spacingAssist, sprintReset.spacingGap);
+            writer.println("# Trigger policy: matching server target-hurt status; target hurtTime gates repeated attempts");
             writer.println("# Sprint key: untouched");
-            writer.println("# Stored humanization timing settings are inactive during this baseline test.");
             writer.printf("# Held items: weapons=%s, tools=%s, blocks=%s, other=%s%n",
-                    wTap.weapons, wTap.tools, wTap.blocks, wTap.other);
-            writer.printf("# Rules: playersOnly=%s%n", wTap.playersOnly);
+                    sprintReset.weapons, sprintReset.tools, sprintReset.blocks, sprintReset.other);
+            writer.printf("# Rules: playersOnly=%s%n", sprintReset.playersOnly);
             writer.println("# Negative timing values mean that stage was not reached or observed before export.");
             writer.println("# --- END METADATA ---");
 
-            writer.println("Timestamp,Outcome,Mode,DecisionUS,ScheduledDelayMS,ActualActionDelayMS,TargetDurationMS,ActualDurationMS,TargetCooldownMS,Sprinting,MovingForward,PhysicalActionDown,PlayerTarget,HeldItem");
-            for (WTapData d : snapshot) {
+            writer.println("Timestamp,Outcome,Mode,DecisionUS,ScheduledDelayMS,ConfirmationSource,ConfirmationDelayMS,ActualActionDelayMS,BaseDurationTicks,DurationMultiplier,TargetDurationTicks,ActualDurationMS,Backstep,Sprinting,MovingForward,PhysicalActionDown,PlayerTarget,HeldItem,AttackGap,AttackClosingSpeed,ConfirmedGap,ConfirmedClosingSpeed,TargetHurtTime");
+            for (SprintResetData d : snapshot) {
                 writer.printf(Locale.ROOT,
-                        "%d,%s,%s,%.3f,%d,%.4f,%d,%.4f,%d,%s,%s,%s,%s,%s%n",
+                        "%d,%s,%s,%.3f,%d,%s,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%s,%s,%s,%s,%s,%s,%.4f,%.6f,%.4f,%.6f,%d%n",
                         d.timestamp, d.outcome.name(), d.mode.name(), nanosToUs(d.decisionNanos),
-                        d.scheduledDelayMs, nanosToMs(d.actionDelayNanos),
-                        d.targetDurationMs, nanosToMs(d.actualDurationNanos), d.targetCooldownMs,
+                        d.scheduledDelayMs, d.confirmationSource,
+                        nanosToMs(d.confirmationDelayNanos),
+                        nanosToMs(d.actionDelayNanos), d.baseDurationTicks,
+                        d.durationMultiplier, d.targetDurationTicks,
+                        nanosToMs(d.actualDurationNanos), d.backstep,
                         d.sprinting, d.movingForward, d.physicalActionDown,
-                        d.playerTarget, d.heldItem.name());
+                        d.playerTarget, d.heldItem.name(), d.attackGap,
+                        d.attackClosingSpeed, d.confirmedGap,
+                        d.confirmedClosingSpeed, d.targetHurtTime);
             }
         }, success -> {
             if (success)
-                Notice.show("Exported W-Tap: " + fileName);
+                Notice.show("Exported Sprint Reset: " + fileName);
             else
-                Notice.show("W-Tap export failed (see console).");
+                Notice.show("Sprint Reset export failed (see console).");
         });
     }
 

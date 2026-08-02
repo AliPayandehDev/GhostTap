@@ -1,6 +1,6 @@
 package com.icysnex.ghosttap.core;
 
-import com.icysnex.ghosttap.core.wtap.WTapMode;
+import com.icysnex.ghosttap.core.sprintreset.SprintResetMode;
 import org.lwjgl.input.Keyboard;
 
 // Every default value in one place.
@@ -84,21 +84,21 @@ public final class Defaults {
 
     public static final JumpResetProfile JUMP_RESET = new JumpResetProfile();
 
-    public static final class WTapProfile {
-        public WTapMode mode = WTapMode.W_TAP;
+    public static final class SprintResetProfile {
+        public SprintResetMode mode = SprintResetMode.W_TAP;
         public double chance = 1.0;
         public double delayMinMs = 0;
         public double delayMaxMs = 0;
 
-        public double durationMeanMs = 20;
-        public double durationStandardDeviationMs = 3;
-        public double durationMinMs = 15;
-        public double durationMaxMs = 30;
+        public double durationMeanTicks = 1.0;
+        public double durationStandardDeviationTicks = 0.35;
+        public double durationMinTicks = 1.0;
+        public double durationMaxTicks = 2.0;
 
-        public double cooldownMeanMs = 500;
-        public double cooldownStandardDeviationMs = 50;
-        public double cooldownMinMs = 400;
-        public double cooldownMaxMs = 600;
+        public double durationAdaptiveness = 0.5;
+        public double durationCloseMultiplier = 1.5;
+        public boolean spacingAssist = true;
+        public double spacingGap = 1.8;
 
         public boolean playersOnly = true;
         public boolean weapons = true;
@@ -107,7 +107,7 @@ public final class Defaults {
         public boolean other = true;
     }
 
-    public static final WTapProfile W_TAP = new WTapProfile();
+    public static final SprintResetProfile SPRINT_RESET = new SprintResetProfile();
 
     static {
         RIGHT.cpsMean = 15.0;
@@ -126,7 +126,7 @@ public final class Defaults {
     public static final int KEY_LEFT = Keyboard.KEY_N;
     public static final int KEY_RIGHT = Keyboard.KEY_M;
     public static final int KEY_JUMP_RESET = Keyboard.KEY_J;
-    public static final int KEY_W_TAP = Keyboard.KEY_K;
+    public static final int KEY_SPRINT_RESET = Keyboard.KEY_K;
     public static final ActivationMode MODE_LEFT = ActivationMode.MOUSE;
     public static final ActivationMode MODE_RIGHT = ActivationMode.MOUSE;
 
@@ -146,7 +146,7 @@ public final class Defaults {
     public static final boolean HUD_CPS_RIGHT = true;
     public static final boolean HUD_STATUS = false;
     public static final boolean HUD_JUMP_RESET_STATUS = false;
-    public static final boolean HUD_W_TAP_STATUS = false;
+    public static final boolean HUD_SPRINT_RESET_STATUS = false;
     public static final boolean HUD_BACKGROUND = true;
     public static final int HUD_PADDING = 5;
     public static final int HUD_TEXT_COLOR = 0xFFFFFFFF;

@@ -6,11 +6,11 @@ import com.icysnex.ghosttap.core.HudAnchor;
 import com.icysnex.ghosttap.core.analytics.Analytics;
 import com.icysnex.ghosttap.core.analytics.JumpResetTracker;
 import com.icysnex.ghosttap.core.analytics.Tracker;
-import com.icysnex.ghosttap.core.analytics.WTapTracker;
+import com.icysnex.ghosttap.core.analytics.SprintResetTracker;
 import com.icysnex.ghosttap.core.click.Clicker;
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
-import com.icysnex.ghosttap.core.wtap.AutoWTap;
-import com.icysnex.ghosttap.core.wtap.WTapMode;
+import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
+import com.icysnex.ghosttap.core.sprintreset.SprintResetMode;
 import com.icysnex.ghosttap.utils.Notice;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -104,7 +104,7 @@ public class GuiGhostTap extends GuiScreen {
         tabs.add(buildClickerTab(Clicker.LEFT));
         tabs.add(buildClickerTab(Clicker.RIGHT));
         tabs.add(buildJumpResetTab());
-        tabs.add(buildWTapTab());
+        tabs.add(buildSprintResetTab());
         tabs.add(new Tab("HUD", single(buildHudRows())));
 
         layoutContent();
@@ -146,12 +146,12 @@ public class GuiGhostTap extends GuiScreen {
         return new Tab("Jump Reset", subs);
     }
 
-    private Tab buildWTapTab() {
+    private Tab buildSprintResetTab() {
         List<SubTab> subs = new ArrayList<>();
-        subs.add(new SubTab("Timing", buildWTapRows()));
-        subs.add(new SubTab("Filters", buildWTapConfigRows()));
-        subs.add(new SubTab("Analytics", buildWTapAnalyticsRows()));
-        return new Tab("W-Tap", subs);
+        subs.add(new SubTab("Timing", buildSprintResetRows()));
+        subs.add(new SubTab("Filters", buildSprintResetConfigRows()));
+        subs.add(new SubTab("Analytics", buildSprintResetAnalyticsRows()));
+        return new Tab("Sprint Reset", subs);
     }
 
     private List<Object> buildCpsRows(Clicker c) {
@@ -326,20 +326,20 @@ public class GuiGhostTap extends GuiScreen {
                 }));
     }
 
-    private GuiButtonRow wTapConfigRow() {
-        AutoWTap wTap = AutoWTap.INSTANCE;
+    private GuiButtonRow sprintResetConfigRow() {
+        AutoSprintReset sprintReset = AutoSprintReset.INSTANCE;
         return new GuiButtonRow("Config",
-                button("Reset", "Restore W-Tap settings to their defaults.",
-                        () -> { wTap.reset(); Notice.show("Reset W-Tap settings to defaults."); }),
-                button("Export", "Copy W-Tap settings to the clipboard.", () -> {
-                    setClipboardString(wTap.export());
-                    Notice.show("Copied W-Tap settings to clipboard.");
+                button("Reset", "Restore Sprint Reset settings to their defaults.",
+                        () -> { sprintReset.reset(); Notice.show("Reset Sprint Reset settings to defaults."); }),
+                button("Export", "Copy Sprint Reset settings to the clipboard.", () -> {
+                    setClipboardString(sprintReset.export());
+                    Notice.show("Copied Sprint Reset settings to clipboard.");
                 }),
-                button("Import", "Load W-Tap settings from the clipboard.", () -> {
-                    if (wTap.importFrom(getClipboardString()))
-                        Notice.show("Loaded W-Tap settings from clipboard.");
+                button("Import", "Load Sprint Reset settings from the clipboard.", () -> {
+                    if (sprintReset.importFrom(getClipboardString()))
+                        Notice.show("Loaded Sprint Reset settings from clipboard.");
                     else
-                        Notice.show("Clipboard has no valid W-Tap config.");
+                        Notice.show("Clipboard has no valid Sprint Reset config.");
                 }));
     }
 
@@ -388,12 +388,12 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.toggleJumpResetKey, v -> ConfigHandler.toggleJumpResetKey = v));
         r.add(jumpResetConfigRow());
 
-        r.add("W-Tap");
-        r.add(toggle("Enabled", "Turn W-Tap on or off.",
-                () -> AutoWTap.INSTANCE.isEnabled(), v -> AutoWTap.INSTANCE.setEnabled(v)));
-        r.add(keybind("Key", "Toggle W-Tap on or off.",
-                () -> ConfigHandler.toggleWTapKey, v -> ConfigHandler.toggleWTapKey = v));
-        r.add(wTapConfigRow());
+        r.add("Sprint Reset");
+        r.add(toggle("Enabled", "Turn Sprint Reset on or off.",
+                () -> AutoSprintReset.INSTANCE.isEnabled(), v -> AutoSprintReset.INSTANCE.setEnabled(v)));
+        r.add(keybind("Key", "Toggle Sprint Reset on or off.",
+                () -> ConfigHandler.toggleSprintResetKey, v -> ConfigHandler.toggleSprintResetKey = v));
+        r.add(sprintResetConfigRow());
 
         r.add("HUD");
         r.add(toggle("Enabled", "Show the on-screen HUD.",
@@ -405,7 +405,7 @@ public class GuiGhostTap extends GuiScreen {
                 button("Import", "Load HUD settings from the clipboard.", this::importHud)));
 
         r.add("Analytics");
-        r.add(toggle("Enabled", "Record click, Jump Reset and W-Tap data for stats and export.",
+        r.add(toggle("Enabled", "Record click, Jump Reset and Sprint Reset data for stats and export.",
                 () -> Tracker.enabled, v -> Tracker.enabled = v));
 
         r.add("Server");
@@ -504,46 +504,94 @@ public class GuiGhostTap extends GuiScreen {
         return r;
     }
 
-    private List<Object> buildWTapRows() {
+    private List<Object> buildSprintResetRows() {
         List<Object> r = new ArrayList<>();
-        AutoWTap wTap = AutoWTap.INSTANCE;
+        AutoSprintReset sprintReset = AutoSprintReset.INSTANCE;
 
         r.add("Action");
-        r.add(wTapModeSegment());
+        r.add(sprintResetModeSegment());
         r.add(slider("Chance", 0, 1, 1, true,
-                "Chance that an eligible attack will trigger the selected sprint reset.",
-                () -> wTap.chance, v -> wTap.chance = v));
+                "Chance that an eligible attack is armed for server hit confirmation.",
+                () -> sprintReset.chance, v -> sprintReset.chance = v));
 
-        r.add("Reference baseline");
-        r.add(stat("Delay", "No extra reaction delay is applied during baseline testing.",
-                () -> "0 ms"));
-        r.add(stat("Tap duration", "Fixed to the reference mod's timer during baseline testing.",
-                () -> AutoWTap.BASELINE_DURATION_MS + " ms"));
-        r.add(stat("Cooldown", "The reference mod collapses attacks behind a ten-client-tick gate.",
-                () -> AutoWTap.BASELINE_COOLDOWN_TICKS + " ticks (~500 ms)"));
-        r.add(stat("Sprint key", "W-Tap currently changes only W; Sprint is never injected.",
-                () -> "Untouched"));
+        r.add("Delay (ms)");
+        r.add(slider("Min", 0, 500, 0, false,
+                "Shortest added delay after server hit confirmation. A value is sampled uniformly between Min and Max.",
+                () -> sprintReset.delayMinMs, v -> {
+                    sprintReset.delayMinMs = v;
+                    if (sprintReset.delayMaxMs < v) sprintReset.delayMaxMs = v;
+                }));
+        r.add(slider("Max", 0, 500, 0, false,
+                "Longest added delay after server hit confirmation. The action begins on the next client tick after it elapses.",
+                () -> sprintReset.delayMaxMs, v -> {
+                    sprintReset.delayMaxMs = v;
+                    if (sprintReset.delayMinMs > v) sprintReset.delayMinMs = v;
+                }));
+
+        r.add("Tap duration (ticks)");
+        r.add(slider("Mean", 1, 3, 1, false,
+                "Average number of complete movement ticks for the reset.",
+                () -> sprintReset.durationMeanTicks, v -> {
+                    sprintReset.durationMeanTicks = v;
+                    if (v < sprintReset.durationMinTicks) sprintReset.durationMinTicks = v;
+                    if (v > sprintReset.durationMaxTicks) sprintReset.durationMaxTicks = v;
+                }));
+        r.add(slider("Variation", 0, 1, 2, false,
+                "Standard deviation used before the sampled duration is rounded to whole ticks.",
+                () -> sprintReset.durationStandardDeviationTicks,
+                v -> sprintReset.durationStandardDeviationTicks = v));
+        r.add(slider("Min", 1, 3, 0, false,
+                "Fewest complete movement ticks allowed.",
+                () -> sprintReset.durationMinTicks, v -> {
+                    sprintReset.durationMinTicks = v;
+                    if (sprintReset.durationMaxTicks < v) sprintReset.durationMaxTicks = v;
+                    if (sprintReset.durationMeanTicks < v) sprintReset.durationMeanTicks = v;
+                }));
+        r.add(slider("Max", 1, 3, 0, false,
+                "Most complete movement ticks allowed.",
+                () -> sprintReset.durationMaxTicks, v -> {
+                    sprintReset.durationMaxTicks = v;
+                    if (sprintReset.durationMinTicks > v) sprintReset.durationMinTicks = v;
+                    if (sprintReset.durationMeanTicks > v) sprintReset.durationMeanTicks = v;
+                }));
+        r.add(slider("Adaptiveness", 0, 1, 0, true,
+                "How strongly a close horizontal hitbox gap may lengthen the reset. It never shortens the baseline.",
+                () -> sprintReset.durationAdaptiveness,
+                v -> sprintReset.durationAdaptiveness = v));
+        r.add(slider("Close multiplier", 1, 2, 0, true,
+                "Maximum duration multiplier near contact. The final result still respects Min and Max.",
+                () -> sprintReset.durationCloseMultiplier,
+                v -> sprintReset.durationCloseMultiplier = v));
+
+        r.add("Spacing assist");
+        r.add(toggle("Enabled",
+                "When the hitboxes are too close and still closing, replace the selected reset with a real one-tap backstep.",
+                () -> sprintReset.spacingAssist, v -> sprintReset.spacingAssist = v));
+        r.add(cond(() -> sprintReset.spacingAssist,
+                slider("Desired gap", 0.5, 3.0, 2, false,
+                        "Horizontal gap between the two hitboxes below which a closing opponent may trigger a backstep.",
+                        () -> sprintReset.spacingGap, v -> sprintReset.spacingGap = v)));
 
         return r;
     }
 
-    private List<Object> buildWTapConfigRows() {
+    private List<Object> buildSprintResetConfigRows() {
         List<Object> r = new ArrayList<>();
-        AutoWTap wTap = AutoWTap.INSTANCE;
+        AutoSprintReset sprintReset = AutoSprintReset.INSTANCE;
 
         r.add("Held item");
         r.add(toggle("Weapons", "Allow while holding a sword or axe.",
-                () -> wTap.weapons, v -> wTap.weapons = v));
+                () -> sprintReset.weapons, v -> sprintReset.weapons = v));
         r.add(toggle("Tools", "Allow while holding a pickaxe, shovel, hoe or shears.",
-                () -> wTap.tools, v -> wTap.tools = v));
+                () -> sprintReset.tools, v -> sprintReset.tools = v));
         r.add(toggle("Blocks", "Allow while holding a placeable block.",
-                () -> wTap.blocks, v -> wTap.blocks = v));
+                () -> sprintReset.blocks, v -> sprintReset.blocks = v));
         r.add(toggle("Other", "Allow while holding anything else, or an empty hand.",
-                () -> wTap.other, v -> wTap.other = v));
+                () -> sprintReset.other, v -> sprintReset.other = v));
 
         r.add("Rules");
         r.add(toggle("Players only", "Only reset sprint after attacking another player.",
-                () -> wTap.playersOnly, v -> wTap.playersOnly = v));
+                () -> sprintReset.playersOnly, v -> sprintReset.playersOnly = v));
 
         return r;
     }
@@ -560,8 +608,8 @@ public class GuiGhostTap extends GuiScreen {
                 () -> ConfigHandler.hudShowStatus, v -> ConfigHandler.hudShowStatus = v));
         r.add(toggle("Jump reset status", "Show auto jump reset's on/off state.",
                 () -> ConfigHandler.hudShowJumpResetStatus, v -> ConfigHandler.hudShowJumpResetStatus = v));
-        r.add(toggle("W-Tap status", "Show auto W-Tap's on/off state.",
-                () -> ConfigHandler.hudShowWTapStatus, v -> ConfigHandler.hudShowWTapStatus = v));
+        r.add(toggle("Sprint Reset status", "Show Sprint Reset's mode, live action state and sampled timing.",
+                () -> ConfigHandler.hudShowSprintResetStatus, v -> ConfigHandler.hudShowSprintResetStatus = v));
         r.add(toggle("Hide on F3", "Hide the HUD while the F3 debug overlay is up.",
                 () -> ConfigHandler.hudHideInMenu, v -> ConfigHandler.hudHideInMenu = v));
 
@@ -667,26 +715,30 @@ public class GuiGhostTap extends GuiScreen {
         return r;
     }
 
-    private List<Object> buildWTapAnalyticsRows() {
+    private List<Object> buildSprintResetAnalyticsRows() {
         List<Object> r = new ArrayList<>();
-        WTapTracker tracker = WTapTracker.INSTANCE;
+        SprintResetTracker tracker = SprintResetTracker.INSTANCE;
 
-        r.add("W-Tap");
-        r.add(stat("Recorded", "Attacks considered by W-Tap this session.",
+        r.add("Sprint Reset");
+        r.add(stat("Recorded", "Attacks considered by Sprint Reset this session.",
                 () -> String.valueOf(tracker.size())));
-        r.add(stat("Triggered", "Recorded attacks that passed every rule and Chance.",
+        r.add(stat("Confirmed", "Pending attacks followed by the target's server hurt status.",
                 () -> String.valueOf(tracker.triggered())));
-        r.add(stat("Average delay", "Average measured time from attack to the selected key action.",
+        r.add(stat("Expired", "Eligible attack attempts for which no matching hurt status arrived in time.",
+                () -> String.valueOf(tracker.expired())));
+        r.add(stat("Confirmation", "Average time from the attack attempt to the matching server hurt status.",
+                () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageConfirmationMs())));
+        r.add(stat("Average delay", "Average measured time from attack attempt to the selected key action.",
                 () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageActionDelayMs())));
         r.add(stat("Average duration", "Average time the selected reset key remained altered.",
                 () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averageDurationMs())));
 
         r.add("Actions");
         r.add(new GuiButtonRow("Analytics",
-                button("Export CSV", "Save recorded W-Tap decisions and timings to a CSV file on the Desktop.",
-                        Analytics::exportWTap),
-                button("Reset", "Delete only the recorded W-Tap analytics data.",
-                        Analytics::clearWTap)));
+                button("Export CSV", "Save recorded Sprint Reset decisions and timings to a CSV file on the Desktop.",
+                        Analytics::exportSprintReset),
+                button("Reset", "Delete only the recorded Sprint Reset analytics data.",
+                        Analytics::clearSprintReset)));
 
         return r;
     }
@@ -723,15 +775,15 @@ public class GuiGhostTap extends GuiScreen {
         return s;
     }
 
-    private GuiSegment wTapModeSegment() {
-        WTapMode[] modes = WTapMode.values();
+    private GuiSegment sprintResetModeSegment() {
+        SprintResetMode[] modes = SprintResetMode.values();
         String[] names = new String[modes.length];
         for (int i = 0; i < modes.length; i++)
             names[i] = modes[i].label;
 
         GuiSegment s = new GuiSegment("Mode", names,
-                () -> AutoWTap.INSTANCE.mode.ordinal(),
-                i -> AutoWTap.INSTANCE.mode = modes[i]);
+                () -> AutoSprintReset.INSTANCE.mode.ordinal(),
+                i -> AutoSprintReset.INSTANCE.mode = modes[i]);
         s.tooltip = "W releases forward, S presses backward, and Shift briefly sneaks.";
         return s;
     }

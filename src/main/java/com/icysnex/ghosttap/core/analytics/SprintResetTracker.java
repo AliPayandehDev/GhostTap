@@ -4,17 +4,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public final class WTapTracker {
+public final class SprintResetTracker {
 
-    public static final WTapTracker INSTANCE = new WTapTracker();
+    public static final SprintResetTracker INSTANCE = new SprintResetTracker();
     private static final int MAX_HISTORY = 2000;
 
-    private final ConcurrentLinkedQueue<WTapData> history = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SprintResetData> history = new ConcurrentLinkedQueue<>();
 
-    private WTapTracker() {
+    private SprintResetTracker() {
     }
 
-    public WTapData record(WTapData data) {
+    public SprintResetData record(SprintResetData data) {
         if (!Tracker.enabled)
             return null;
 
@@ -33,7 +33,18 @@ public final class WTapTracker {
     }
 
     public long triggered() {
-        return history.stream().filter(d -> d.outcome == WTapData.Outcome.TRIGGERED).count();
+        return history.stream().filter(d -> d.outcome == SprintResetData.Outcome.TRIGGERED).count();
+    }
+
+    public long expired() {
+        return history.stream().filter(d -> d.outcome == SprintResetData.Outcome.EXPIRED).count();
+    }
+
+    public double averageConfirmationMs() {
+        return history.stream()
+                .filter(d -> d.confirmationDelayNanos >= 0)
+                .mapToDouble(d -> d.confirmationDelayNanos / 1_000_000.0)
+                .average().orElse(0);
     }
 
     public double averageActionDelayMs() {
@@ -50,7 +61,7 @@ public final class WTapTracker {
                 .average().orElse(0);
     }
 
-    public List<WTapData> copy() {
+    public List<SprintResetData> copy() {
         return new ArrayList<>(history);
     }
 }
