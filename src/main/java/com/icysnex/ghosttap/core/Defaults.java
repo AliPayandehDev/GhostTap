@@ -66,15 +66,11 @@ public final class Defaults {
 
     public static final class JumpResetProfile {
         public double chance = 0.85;
-        public double delayMeanMs = 15;
-        public double delayStandardDeviationMs = 10;
-        public double delayMinMs = 5;
-        public double delayMaxMs = 50;
-
         public double holdMeanMs = 75;
         public double holdStandardDeviationMs = 15;
         public double holdMinMs = 50;
-        public double holdMaxMs = 100;
+        public double holdMaxMs = 125;
+        public double minimumHorizontalVelocity = 0.03;
 
         public boolean onGroundOnly = true;
         public boolean sprintingOnly = true;

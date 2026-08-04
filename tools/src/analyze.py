@@ -100,26 +100,44 @@ def plot_clicker(df, file_path, params):
 
 
 def plot_jump_reset(df, file_path, params):
+    # Keep the earlier scheduler-based Jump Reset exports readable.
+    if "JumpApplied" not in df.columns:
+        df["JumpApplied"] = "unknown"
+    if "SprintResetDeferred" not in df.columns:
+        df["SprintResetDeferred"] = False
+    if "HorizontalVelocity" not in df.columns:
+        df["HorizontalVelocity"] = (
+            df.get("VelocityX", 0).astype(float) ** 2
+            + df.get("VelocityZ", 0).astype(float) ** 2
+        ) ** 0.5
+    if "JumpDelayMS" not in df.columns:
+        df["JumpDelayMS"] = -1
+    if "TargetHoldMS" not in df.columns:
+        df["TargetHoldMS"] = -1
+
     df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
     triggered = df[df["Outcome"] == "TRIGGERED"]
     pressed = triggered[triggered["ActualPressDelayMS"] >= 0]
-    observed_ticks = triggered[triggered["InputTickOffset"] >= 0]
-
+    applied_mask = triggered["JumpApplied"].astype(str).str.lower().eq("true")
+    applied = triggered[applied_mask]
+    completed_holds = triggered[triggered["ActualHoldMS"] >= 0]
     trigger_rate = len(triggered) * 100.0 / len(df) if len(df) else 0
-    same_tick_rate = (
-        (observed_ticks["InputTickOffset"] == 0).mean() * 100.0
-        if len(observed_ticks) else 0
-    )
+    applied_rate = len(applied) * 100.0 / len(triggered) if len(triggered) else 0
+    deferrals = triggered["SprintResetDeferred"].astype(str).str.lower().eq("true").sum()
     average_delay = pressed["ActualPressDelayMS"].mean() if len(pressed) else 0
+    average_jump_delay = applied["JumpDelayMS"].mean() if len(applied) else 0
+    average_velocity = triggered["HorizontalVelocity"].mean() if len(triggered) else 0
     average_decision = df["DecisionUS"].mean() if len(df) else 0
     average_packet_gap = df["HurtToVelocityMS"].mean() if len(df) else 0
     session_time = df["TimeSeconds"].max() if len(df) else 0
 
     session_stats = (
         f"Session: {session_time:.1f}s | Hits: {len(df)} | Triggered: {len(triggered)} "
-        f"({trigger_rate:.1f}%) | Same input tick: {same_tick_rate:.1f}%\n"
-        f"Avg actual delay: {average_delay:.3f}ms | Avg decision cost: {average_decision:.3f}us | "
-        f"Avg S19->S12: {average_packet_gap:.3f}ms"
+        f"({trigger_rate:.1f}%) | Jump applied: {len(applied)} ({applied_rate:.1f}%) | "
+        f"Sprint deferrals: {deferrals}\n"
+        f"Avg press: {average_delay:.3f}ms | Avg jump: {average_jump_delay:.3f}ms | "
+        f"Avg horizontal velocity: {average_velocity:.3f} | "
+        f"Avg decision: {average_decision:.3f}us | Avg S19->S12: {average_packet_gap:.3f}ms"
     )
     header_text = f"{session_stats}\n---\n" + "\n".join(params)
 
@@ -131,17 +149,18 @@ def plot_jump_reset(df, file_path, params):
     timeline_axis = fig.add_subplot(gs[1, 0])
     outcome_axis = fig.add_subplot(gs[1, 1])
     delay_axis = fig.add_subplot(gs[2, 0])
-    tick_axis = fig.add_subplot(gs[2, 1])
+    hold_axis = fig.add_subplot(gs[2, 1])
 
     if len(pressed):
         timeline_axis.scatter(
             pressed["TimeSeconds"], pressed["ActualPressDelayMS"],
             s=20, alpha=0.75, label="Actual press delay", color="tab:red",
         )
-        timeline_axis.scatter(
-            pressed["TimeSeconds"], pressed["ScheduledDelayMS"],
-            s=14, alpha=0.45, label="Scheduled delay", color="tab:blue",
-        )
+        if len(applied):
+            timeline_axis.scatter(
+                applied["TimeSeconds"], applied["JumpDelayMS"],
+                s=14, alpha=0.55, label="Observed jump", color="tab:green",
+            )
         timeline_axis.legend(loc="upper right")
     else:
         timeline_axis.text(0.5, 0.5, "No completed presses", ha="center", va="center")
@@ -154,19 +173,21 @@ def plot_jump_reset(df, file_path, params):
     outcome_axis.set_title("Decision Outcomes")
     outcome_axis.set_xlabel("Events")
 
-    safe_histplot(pressed["ActualPressDelayMS"], delay_axis, "tab:orange")
-    delay_axis.set_title("Actual Packet-to-Space Delay")
-    delay_axis.set_xlabel("Delay (ms)")
+    safe_histplot(df["HorizontalVelocity"], delay_axis, "tab:orange")
+    delay_axis.set_title("Incoming Horizontal Velocity")
+    delay_axis.set_xlabel("Velocity (blocks/tick)")
 
-    if len(observed_ticks):
-        tick_counts = observed_ticks["InputTickOffset"].astype(int).value_counts().sort_index()
-        tick_counts.plot(kind="bar", ax=tick_axis, color="tab:green")
-        tick_axis.set_xticklabels([str(value) for value in tick_counts.index], rotation=0)
+    if len(completed_holds):
+        safe_histplot(completed_holds["ActualHoldMS"], hold_axis, "tab:blue")
+        target_holds = completed_holds[completed_holds["TargetHoldMS"] >= 0]
+        if len(target_holds):
+            hold_axis.axvline(target_holds["TargetHoldMS"].mean(), color="tab:red",
+                              linestyle="--", label="Avg sampled target")
+            hold_axis.legend(loc="upper right")
     else:
-        tick_axis.text(0.5, 0.5, "No movement-tick observations", ha="center", va="center")
-    tick_axis.set_title("Movement Input Tick Offset")
-    tick_axis.set_xlabel("Ticks after hit input tick (0 = same)")
-    tick_axis.set_ylabel("Presses")
+        hold_axis.text(0.5, 0.5, "No completed holds", ha="center", va="center")
+    hold_axis.set_title("Synthetic Jump-key Hold")
+    hold_axis.set_xlabel("Actual hold (ms)")
 
     add_header(fig, gs[0, :], header_text)
     return fig
@@ -184,6 +205,8 @@ def plot_sprint_reset(df, file_path, params):
         df["Mode"] = "W_TAP"
     if "ConfirmationDelayMS" not in df.columns:
         df["ConfirmationDelayMS"] = -1
+    if "ScheduledDelayMS" not in df.columns:
+        df["ScheduledDelayMS"] = 0
     if "AttackGap" not in df.columns:
         if "TargetGap" in df.columns:
             df["AttackGap"] = df["TargetGap"]
@@ -191,6 +214,12 @@ def plot_sprint_reset(df, file_path, params):
             df["AttackGap"] = df["TargetDistance"]
     if "ConfirmedGap" not in df.columns:
         df["ConfirmedGap"] = df["AttackGap"] if "AttackGap" in df.columns else float("nan")
+    if "ProjectedGap" not in df.columns:
+        df["ProjectedGap"] = df["ConfirmedGap"]
+    if "FinalGap" not in df.columns:
+        df["FinalGap"] = float("nan")
+    if "JumpDeferrals" not in df.columns:
+        df["JumpDeferrals"] = 0
     if "Backstep" not in df.columns:
         df["Backstep"] = False
     df["TimeSeconds"] = (df["Timestamp"] - df["Timestamp"].min()) / 1000.0
@@ -206,6 +235,7 @@ def plot_sprint_reset(df, file_path, params):
     average_gap = confirmed["ConfirmedGap"].mean() if len(confirmed) else 0
     average_multiplier = completed["DurationMultiplier"].mean() if "DurationMultiplier" in completed.columns else 1
     backsteps = triggered["Backstep"].astype(str).str.lower().eq("true").sum()
+    jump_deferrals = triggered["JumpDeferrals"].sum()
     average_decision = df["DecisionUS"].mean() if len(df) else 0
     session_time = df["TimeSeconds"].max() if len(df) else 0
     modes = ", ".join(sorted(df["Mode"].dropna().unique()))
@@ -214,8 +244,9 @@ def plot_sprint_reset(df, file_path, params):
         f"Session: {session_time:.1f}s | Attacks: {len(df)} | Triggered: {len(triggered)} "
         f"({trigger_rate:.1f}%) | Modes: {modes}\n"
         f"Avg confirmation: {average_confirmation:.3f}ms | Avg action delay: {average_delay:.3f}ms | "
-        f"Avg duration: {average_duration:.3f}ms | Backsteps: {backsteps}\n"
-        f"Avg horizontal gap: {average_gap:.2f} | Avg duration multiplier: {average_multiplier:.3f}x | "
+        f"Avg duration: {average_duration:.3f}ms | Backsteps: {backsteps} | "
+        f"Jump deferrals: {jump_deferrals:.0f}\n"
+        f"Avg confirmed gap: {average_gap:.2f} | Avg duration multiplier: {average_multiplier:.3f}x | "
         f"Avg decision cost: {average_decision:.3f}us"
     )
     header_text = f"{session_stats}\n---\n" + "\n".join(params)
@@ -264,18 +295,18 @@ def plot_sprint_reset(df, file_path, params):
     if len(response) and "TargetDurationTicks" in response.columns:
         backstep_mask = response["Backstep"].astype(str).str.lower().eq("true")
         duration_axis.scatter(
-            response.loc[~backstep_mask, "ConfirmedGap"],
+            response.loc[~backstep_mask, "ProjectedGap"],
             response.loc[~backstep_mask, "TargetDurationTicks"],
             s=22, alpha=0.7, label="Reset", color="tab:green",
         )
         duration_axis.scatter(
-            response.loc[backstep_mask, "ConfirmedGap"],
+            response.loc[backstep_mask, "ProjectedGap"],
             response.loc[backstep_mask, "TargetDurationTicks"],
             s=28, alpha=0.8, label="Backstep", color="tab:red",
         )
         duration_axis.legend(loc="upper right")
-        duration_axis.set_title("Response by Confirmed Horizontal Gap")
-        duration_axis.set_xlabel("Hitbox gap (blocks)")
+        duration_axis.set_title("Response by Projected Horizontal Gap")
+        duration_axis.set_xlabel("One-tick projected hitbox gap (blocks)")
         duration_axis.set_ylabel("Target duration (ticks)")
     else:
         safe_histplot(completed["ActualDurationMS"], duration_axis, "tab:green")
@@ -305,8 +336,10 @@ def run_analysis():
         "Outcome", "ActualReleaseDelayMS", "ActualReleaseMS", "DecisionUS"
     }.issubset(df.columns)
     is_jump_reset = {
-        "Outcome", "ActualPressDelayMS", "InputTickOffset", "DecisionUS"
-    }.issubset(df.columns)
+        "Outcome", "ActualPressDelayMS", "DecisionUS"
+    }.issubset(df.columns) and (
+        "JumpApplied" in df.columns or "InputTickOffset" in df.columns
+    )
     if is_sprint_reset:
         fig = plot_sprint_reset(df, file_path, params)
     elif is_jump_reset:

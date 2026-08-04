@@ -47,12 +47,18 @@ public final class SprintResetData {
     public volatile String confirmationSource = "NONE";
     public volatile double confirmedGap = Double.NaN;
     public volatile double confirmedClosingSpeed = Double.NaN;
+    public volatile double projectedGap = Double.NaN;
+    public volatile double finalGap = Double.NaN;
     public volatile long actionDelayNanos = -1;
     public volatile double baseDurationTicks = -1;
     public volatile double durationMultiplier = -1;
     public volatile int targetDurationTicks = -1;
     public volatile long actualDurationNanos = -1;
     public volatile boolean backstep;
+    public volatile int jumpDeferrals;
+    public volatile boolean sprintAtActionStart;
+    public volatile boolean sprintStoppedDuringAction;
+    public volatile boolean sprintAfterRestore;
 
     public SprintResetData(long timestamp, Outcome outcome, SprintResetMode mode,
                            long decisionNanos, long scheduledDelayMs,
@@ -77,25 +83,32 @@ public final class SprintResetData {
 
     public void markConfirmed(long nowNanos, long attackNanos, String confirmationSource,
                               double confirmedGap, double confirmedClosingSpeed,
-                              boolean backstep) {
+                              double projectedGap, boolean backstep) {
         outcome = Outcome.TRIGGERED;
         confirmationDelayNanos = Math.max(0, nowNanos - attackNanos);
         this.confirmationSource = confirmationSource;
         this.confirmedGap = confirmedGap;
         this.confirmedClosingSpeed = confirmedClosingSpeed;
+        this.projectedGap = projectedGap;
         this.backstep = backstep;
     }
 
     public void markStarted(long nowNanos, long attackNanos,
                             double baseDurationTicks, double durationMultiplier,
-                            int targetDurationTicks) {
+                            int targetDurationTicks, boolean sprintAtActionStart) {
         actionDelayNanos = Math.max(0, nowNanos - attackNanos);
         this.baseDurationTicks = baseDurationTicks;
         this.durationMultiplier = durationMultiplier;
         this.targetDurationTicks = targetDurationTicks;
+        this.sprintAtActionStart = sprintAtActionStart;
     }
 
-    public void markEnded(long durationNanos) {
+    public void markEnded(long durationNanos, double finalGap) {
         actualDurationNanos = Math.max(0, durationNanos);
+        this.finalGap = finalGap;
+    }
+
+    public void markJumpDeferred() {
+        jumpDeferrals++;
     }
 }

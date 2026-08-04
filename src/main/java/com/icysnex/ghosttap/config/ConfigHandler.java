@@ -207,14 +207,15 @@ public class ConfigHandler {
         AutoJumpReset jumpReset = AutoJumpReset.INSTANCE;
         jumpReset.setEnabled(bool(CAT_JUMP_RESET, "enabled", jumpReset.isEnabled(), save));
         bind(CAT_JUMP_RESET, "chance", () -> jumpReset.chance, v -> jumpReset.chance = v, save);
-        bind(CAT_JUMP_RESET, "delayMeanMs", () -> jumpReset.delayMeanMs, v -> jumpReset.delayMeanMs = v, save);
-        bind(CAT_JUMP_RESET, "delayStandardDeviationMs", () -> jumpReset.delayStandardDeviationMs, v -> jumpReset.delayStandardDeviationMs = v, save);
-        bind(CAT_JUMP_RESET, "delayMinMs", () -> jumpReset.delayMinMs, v -> jumpReset.delayMinMs = v, save);
-        bind(CAT_JUMP_RESET, "delayMaxMs", () -> jumpReset.delayMaxMs, v -> jumpReset.delayMaxMs = v, save);
         bind(CAT_JUMP_RESET, "holdMeanMs", () -> jumpReset.holdMeanMs, v -> jumpReset.holdMeanMs = v, save);
-        bind(CAT_JUMP_RESET, "holdStandardDeviationMs", () -> jumpReset.holdStandardDeviationMs, v -> jumpReset.holdStandardDeviationMs = v, save);
+        bind(CAT_JUMP_RESET, "holdStandardDeviationMs",
+                () -> jumpReset.holdStandardDeviationMs,
+                v -> jumpReset.holdStandardDeviationMs = v, save);
         bind(CAT_JUMP_RESET, "holdMinMs", () -> jumpReset.holdMinMs, v -> jumpReset.holdMinMs = v, save);
         bind(CAT_JUMP_RESET, "holdMaxMs", () -> jumpReset.holdMaxMs, v -> jumpReset.holdMaxMs = v, save);
+        bind(CAT_JUMP_RESET, "minimumHorizontalVelocity",
+                () -> jumpReset.minimumHorizontalVelocity,
+                v -> jumpReset.minimumHorizontalVelocity = v, save);
         jumpReset.onGroundOnly = bool(CAT_JUMP_RESET, "onGroundOnly", jumpReset.onGroundOnly, save);
         jumpReset.sprintingOnly = bool(CAT_JUMP_RESET, "sprintingOnly", jumpReset.sprintingOnly, save);
         jumpReset.forwardOnly = bool(CAT_JUMP_RESET, "forwardOnly", jumpReset.forwardOnly, save);

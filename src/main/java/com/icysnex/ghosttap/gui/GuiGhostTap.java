@@ -143,7 +143,7 @@ public class GuiGhostTap extends GuiScreen {
         subs.add(new SubTab("Timing", buildJumpResetRows()));
         subs.add(new SubTab("Filters", buildJumpResetConfigRows()));
         subs.add(new SubTab("Analytics", buildJumpResetAnalyticsRows()));
-        return new Tab("Jump Reset", subs);
+        return new Tab("Jump", subs);
     }
 
     private Tab buildSprintResetTab() {
@@ -151,7 +151,7 @@ public class GuiGhostTap extends GuiScreen {
         subs.add(new SubTab("Timing", buildSprintResetRows()));
         subs.add(new SubTab("Filters", buildSprintResetConfigRows()));
         subs.add(new SubTab("Analytics", buildSprintResetAnalyticsRows()));
-        return new Tab("Sprint Reset", subs);
+        return new Tab("Sprint", subs);
     }
 
     private List<Object> buildCpsRows(Clicker c) {
@@ -430,57 +430,38 @@ public class GuiGhostTap extends GuiScreen {
                 "Chance that an eligible hit will trigger a jump reset.",
                 () -> jumpReset.chance, v -> jumpReset.chance = v));
 
-        r.add("Delay (ms)");
-        r.add(slider("Mean", 0, 500, 0, false,
-                "Average reaction delay after knockback arrives.\nA delay that crosses the input sample adds a full game tick.",
-                () -> jumpReset.delayMeanMs, v -> {
-                    jumpReset.delayMeanMs = v;
-                    if (v < jumpReset.delayMinMs) jumpReset.delayMinMs = v;
-                    if (v > jumpReset.delayMaxMs) jumpReset.delayMaxMs = v;
-                }));
-        r.add(slider("Std deviation", 0, 150, 0, false,
-                "How much reaction delay randomly varies around the Mean.",
-                () -> jumpReset.delayStandardDeviationMs, v -> jumpReset.delayStandardDeviationMs = v));
-        r.add(slider("Min", 0, 500, 0, false,
-                "Shortest allowed delay.",
-                () -> jumpReset.delayMinMs, v -> {
-                    jumpReset.delayMinMs = v;
-                    if (jumpReset.delayMaxMs < v) jumpReset.delayMaxMs = v;
-                    if (jumpReset.delayMeanMs < v) jumpReset.delayMeanMs = v;
-                }));
-        r.add(slider("Max", 0, 500, 0, false,
-                "Longest allowed delay.",
-                () -> jumpReset.delayMaxMs, v -> {
-                    jumpReset.delayMaxMs = v;
-                    if (jumpReset.delayMinMs > v) jumpReset.delayMinMs = v;
-                    if (jumpReset.delayMeanMs > v) jumpReset.delayMeanMs = v;
-                }));
-
         r.add("Hold (ms)");
-        r.add(slider("Mean", 1, 500, 0, false,
-                "Average time Space is held down.",
+        r.add(slider("Mean", 1, 250, 0, false,
+                "Average time the jump key remains visibly held after Minecraft samples the press.",
                 () -> jumpReset.holdMeanMs, v -> {
                     jumpReset.holdMeanMs = v;
                     if (v < jumpReset.holdMinMs) jumpReset.holdMinMs = v;
                     if (v > jumpReset.holdMaxMs) jumpReset.holdMaxMs = v;
                 }));
-        r.add(slider("Std deviation", 0, 150, 0, false,
-                "How much the hold time randomly varies around the mean.",
-                () -> jumpReset.holdStandardDeviationMs, v -> jumpReset.holdStandardDeviationMs = v));
-        r.add(slider("Min", 1, 500, 0, false,
-                "Shortest allowed hold time.",
+        r.add(slider("Variation", 0, 100, 0, false,
+                "Standard deviation of the sampled hold duration.",
+                () -> jumpReset.holdStandardDeviationMs,
+                v -> jumpReset.holdStandardDeviationMs = v));
+        r.add(slider("Min", 1, 250, 0, false,
+                "Shortest allowed hold duration. One complete movement sample is always guaranteed.",
                 () -> jumpReset.holdMinMs, v -> {
                     jumpReset.holdMinMs = v;
                     if (jumpReset.holdMaxMs < v) jumpReset.holdMaxMs = v;
                     if (jumpReset.holdMeanMs < v) jumpReset.holdMeanMs = v;
                 }));
-        r.add(slider("Max", 1, 500, 0, false,
-                "Longest allowed hold time.",
+        r.add(slider("Max", 1, 250, 0, false,
+                "Longest allowed hold duration.",
                 () -> jumpReset.holdMaxMs, v -> {
                     jumpReset.holdMaxMs = v;
                     if (jumpReset.holdMinMs > v) jumpReset.holdMinMs = v;
                     if (jumpReset.holdMeanMs > v) jumpReset.holdMeanMs = v;
                 }));
+
+        r.add("Knockback");
+        r.add(slider("Min horizontal velocity", 0, 0.25, 3, false,
+                "Ignore hurt/velocity packet pairs without a meaningful horizontal PvP impulse.",
+                () -> jumpReset.minimumHorizontalVelocity,
+                v -> jumpReset.minimumHorizontalVelocity = v));
 
         return r;
     }
@@ -700,8 +681,9 @@ public class GuiGhostTap extends GuiScreen {
                 () -> String.valueOf(tracker.size())));
         r.add(stat("Triggered", "Recorded events that passed every filter and Chance.",
                 () -> String.valueOf(tracker.triggered())));
-        r.add(stat("Same input tick", "Triggered presses observed before the hit's next movement input sample.",
-                () -> tracker.observedPresses() == 0 ? "--" : String.format("%.1f%%", tracker.sameTickPercent())));
+        r.add(stat("Jump applied", "Triggered actions for which Minecraft emitted a local jump event.",
+                () -> tracker.triggered() == 0 ? "--"
+                        : String.format("%.1f%%", tracker.applied() * 100.0 / tracker.triggered())));
         r.add(stat("Average delay", "Average measured time from velocity handling to synthetic Space-down.",
                 () -> tracker.triggered() == 0 ? "--" : String.format("%.3f ms", tracker.averagePressDelayMs())));
 

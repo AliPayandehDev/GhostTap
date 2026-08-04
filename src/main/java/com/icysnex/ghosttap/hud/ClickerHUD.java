@@ -79,12 +79,15 @@ public class ClickerHUD {
             lines.add(Line.status("Right", Clicker.RIGHT.isActive(ConfigHandler.rightMode), Clicker.RIGHT.isEnabled(), ConfigHandler.rightMode.label));
         }
 
-        if (ConfigHandler.hudShowJumpResetStatus)
-            lines.add(Line.status("Jump reset", AutoJumpReset.INSTANCE.isEnabled()));
+        if (ConfigHandler.hudShowJumpResetStatus) {
+            AutoJumpReset.HudSnapshot status = AutoJumpReset.INSTANCE.hudSnapshot();
+            lines.add(Line.status("Jump", status.enabled, status.active,
+                    status.state, null));
+        }
 
         if (ConfigHandler.hudShowSprintResetStatus) {
             AutoSprintReset.HudSnapshot status = AutoSprintReset.INSTANCE.hudSnapshot();
-            lines.add(Line.status("Sprint Reset", status.enabled, status.active,
+            lines.add(Line.status("Sprint", status.enabled, status.active,
                     status.state, status.detail));
         }
 
@@ -168,10 +171,10 @@ public class ClickerHUD {
             if (plain != null)
                 return fr.getStringWidth(plain);
             int width = fr.getStringWidth(name + ": ") + fr.getStringWidth(onText());
-            if (mode == null)
+            if (activity == null)
                 return width;
-            return width
-                    + fr.getStringWidth(" " + activity) + fr.getStringWidth(" (" + mode + ")");
+            width += fr.getStringWidth(" " + activity);
+            return mode == null ? width : width + fr.getStringWidth(" (" + mode + ")");
         }
 
         void draw(FontRenderer fr, int x, int y, int color) {
@@ -183,10 +186,12 @@ public class ClickerHUD {
             fr.drawStringWithShadow(prefix, x, y, color);
             int x2 = x + fr.getStringWidth(prefix);
             fr.drawStringWithShadow(onText(), x2, y, on ? GREEN : RED);
-            if (mode == null)
+            if (activity == null)
                 return;
             int x3 = x2 + fr.getStringWidth(onText());
             fr.drawStringWithShadow(" " + activity, x3, y, clicking ? GREEN : GRAY);
+            if (mode == null)
+                return;
             int x4 = x3 + fr.getStringWidth(" " + activity);
             fr.drawStringWithShadow(" (" + mode + ")", x4, y, color);
         }

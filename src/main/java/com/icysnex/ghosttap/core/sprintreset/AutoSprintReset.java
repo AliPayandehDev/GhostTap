@@ -7,6 +7,7 @@ import com.icysnex.ghosttap.core.analytics.SprintResetTracker;
 import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.click.Variance;
 import com.icysnex.ghosttap.core.input.InputKeyboard;
+import com.icysnex.ghosttap.core.jump.AutoJumpReset;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.settings.KeyBinding;
@@ -188,16 +189,17 @@ public final class AutoSprintReset {
         double confirmedGap = horizontalGap(mc.thePlayer, target);
         double confirmedClosingSpeed = closingSpeed(mc.thePlayer, target);
         double observedClosingSpeed = Math.min(pending.closingSpeed, confirmedClosingSpeed);
+        double projectedGap = Math.max(0, confirmedGap + Math.min(0, observedClosingSpeed));
         boolean adaptiveBackstep = spacingAssist
                 && pending.mode != SprintResetMode.S_TAP
-                && confirmedGap < clamp(spacingGap, 0.5, 3.0)
+                && projectedGap < clamp(spacingGap, 0.5, 3.0)
                 && observedClosingSpeed < -CLOSING_EPSILON;
         boolean backstep = pending.mode == SprintResetMode.S_TAP || adaptiveBackstep;
-        double multiplier = durationMultiplier(confirmedGap);
+        double multiplier = durationMultiplier(projectedGap);
 
         if (pending.data != null)
             pending.data.markConfirmed(now, pending.attackNanos, confirmationSource,
-                    confirmedGap, confirmedClosingSpeed, backstep);
+                    confirmedGap, confirmedClosingSpeed, projectedGap, backstep);
         armedAction = new ConfirmedAction(pending, saturatedAdd(now,
                 TimeUnit.MILLISECONDS.toNanos(pending.delayMs)), multiplier, backstep);
         pendingHit = null;
@@ -225,8 +227,18 @@ public final class AutoSprintReset {
             expire(pendingHit);
 
         ActiveAction active = activeAction;
+        if (AutoJumpReset.INSTANCE.isMovementProtected()) {
+            deferForJumpReset();
+            return;
+        }
+
+        if (active != null && active.pausedForJump) {
+            active.resume(now);
+            active.plan.apply();
+        }
+
         if (active != null && !active.gameplayFinished && active.remainingTicks <= 0)
-            finishGameplay(active, now);
+            finishGameplay(active, now, mc);
 
         ConfirmedAction armed = armedAction;
         if (armed != null && activeAction == null && now >= armed.readyAtNanos) {
@@ -237,8 +249,18 @@ public final class AutoSprintReset {
 
     private synchronized void runEndTick() {
         ActiveAction active = activeAction;
-        if (active != null && !active.gameplayFinished)
+        if (active != null && !active.gameplayFinished && !active.pausedForJump) {
             active.remainingTicks--;
+            Minecraft mc = Minecraft.getMinecraft();
+            if (active.action.pending.data != null && mc.thePlayer != null
+                    && !mc.thePlayer.isSprinting())
+                active.action.pending.data.sprintStoppedDuringAction = true;
+        }
+
+        Minecraft mc = Minecraft.getMinecraft();
+        if (active != null && active.gameplayFinished
+                && active.action.pending.data != null && mc.thePlayer != null)
+            active.action.pending.data.sprintAfterRestore = mc.thePlayer.isSprinting();
         finishVisualIfReady();
     }
 
@@ -268,16 +290,50 @@ public final class AutoSprintReset {
         activeAction = active;
         if (action.pending.data != null)
             action.pending.data.markStarted(now, action.pending.attackNanos, baseTicks,
-                    effectiveMultiplier, durationTicks);
+                    effectiveMultiplier, durationTicks, mc.thePlayer.isSprinting());
     }
 
-    private void finishGameplay(ActiveAction action, long now) {
+    private void finishGameplay(ActiveAction action, long now, Minecraft mc) {
         if (activeAction != action)
             return;
         action.plan.restoreGameplay();
         action.gameplayFinished = true;
-        if (action.action.pending.data != null)
-            action.action.pending.data.markEnded(now - action.startNanos);
+        if (action.action.pending.data != null) {
+            Entity target = mc.theWorld == null ? null
+                    : mc.theWorld.getEntityByID(action.action.pending.targetEntityId);
+            double finalGap = target == null || mc.thePlayer == null
+                    ? Double.NaN : horizontalGap(mc.thePlayer, target);
+            action.action.pending.data.markEnded(action.activeDuration(now), finalGap);
+        }
+    }
+
+    // Jump Reset owns the movement keys for its one complete tick. An armed
+    // Sprint Reset waits; an active one is restored and resumed without losing
+    // one of its configured gameplay ticks.
+    public synchronized boolean deferForJumpReset() {
+        boolean deferred = false;
+        if (armedAction != null) {
+            if (!armedAction.jumpDeferred && armedAction.pending.data != null)
+                armedAction.pending.data.markJumpDeferred();
+            armedAction.jumpDeferred = true;
+            deferred = true;
+        }
+
+        ActiveAction active = activeAction;
+        if (active != null) {
+            if (active.gameplayFinished) {
+                active.plan.releaseVisual();
+                activeAction = null;
+            } else if (!active.pausedForJump) {
+                active.plan.restoreGameplay();
+                active.plan.releaseVisual();
+                active.pause(System.nanoTime());
+                if (active.action.pending.data != null)
+                    active.action.pending.data.markJumpDeferred();
+                deferred = true;
+            }
+        }
+        return deferred;
     }
 
     private void finishVisualIfReady() {
@@ -441,7 +497,8 @@ public final class AutoSprintReset {
             cancel(armedAction.pending.data);
         armedAction = null;
         if (activeAction != null) {
-            activeAction.plan.restoreGameplay();
+            if (!activeAction.pausedForJump)
+                activeAction.plan.restoreGameplay();
             activeAction.plan.releaseVisual();
             if (!activeAction.gameplayFinished)
                 cancel(activeAction.action.pending.data);
@@ -585,6 +642,7 @@ public final class AutoSprintReset {
         final long readyAtNanos;
         final double durationMultiplier;
         final boolean backstep;
+        boolean jumpDeferred;
 
         ConfirmedAction(PendingHit pending, long readyAtNanos,
                         double durationMultiplier, boolean backstep) {
@@ -608,6 +666,9 @@ public final class AutoSprintReset {
         final int targetDurationTicks;
         int remainingTicks;
         boolean gameplayFinished;
+        boolean pausedForJump;
+        long pauseStartedNanos;
+        long totalPausedNanos;
 
         ActiveAction(ConfirmedAction action, ActionPlan plan, long startNanos,
                      long startPoll, int targetDurationTicks) {
@@ -617,6 +678,26 @@ public final class AutoSprintReset {
             this.startPoll = startPoll;
             this.targetDurationTicks = targetDurationTicks;
             this.remainingTicks = targetDurationTicks;
+        }
+
+        void pause(long now) {
+            pausedForJump = true;
+            pauseStartedNanos = now;
+        }
+
+        void resume(long now) {
+            if (!pausedForJump)
+                return;
+            totalPausedNanos += Math.max(0, now - pauseStartedNanos);
+            pauseStartedNanos = 0;
+            pausedForJump = false;
+        }
+
+        long activeDuration(long now) {
+            long paused = totalPausedNanos;
+            if (pausedForJump)
+                paused += Math.max(0, now - pauseStartedNanos);
+            return Math.max(0, now - startNanos - paused);
         }
     }
 
