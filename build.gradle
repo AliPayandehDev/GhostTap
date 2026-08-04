@@ -93,6 +93,82 @@ task copyModsToRun(type: Copy) {
 }
 copyModsToRun.dependsOn build
 
+// Run the built mod in Prism's normal obfuscated Forge environment. This is the
+// accurate integration/PvP client: OptiFine and production coremods do not share
+// ForgeGradle's deobfuscated runClient naming environment.
+def prismRoot = new File(System.getProperty("user.home"), "AppData/Roaming/PrismLauncher")
+def prismSourceMinecraft = new File(prismRoot, "instances/1.8.9/minecraft")
+def prismDevMinecraft = new File(prismRoot, "instances/1.8.9-dev/minecraft")
+def prismDevMods = new File(prismDevMinecraft, "mods")
+def prismLauncher = new File(System.getenv("PRISM_LAUNCHER") ?: "G:/Launchers/PrismLauncher/prismlauncher.exe")
+
+task syncPrismDevProfile(type: Copy) {
+    description = "Copies the real 1.8.9 profile into the isolated Prism development instance."
+    group = "ghosttap development"
+
+    from(prismSourceMinecraft) {
+        include "accounts.json", "servers.dat", "usercache.json", "usernamecache.json"
+        include "options.txt", "optionsof.txt", "optionsshaders.txt"
+        include "ben_playeresp.json", "custom-crosshair-mod_save.txt"
+        include "config/**", "OneConfig/**", "patcher/**"
+        include "resourcepacks/**", "shaderpacks/**", "server-resource-packs/**", "texturepacks/**"
+        include "mods/**"
+        exclude "mods/GhostTap*.jar"
+        exclude "**/desktop.ini"
+    }
+    into prismDevMinecraft
+
+    doFirst {
+        if (!prismSourceMinecraft.isDirectory()) {
+            throw new GradleException("Prism source profile not found: ${prismSourceMinecraft}")
+        }
+    }
+}
+
+task copyModToPrismDev(type: Copy) {
+    description = "Builds GhostTap and installs it in the isolated Prism development instance."
+    group = "ghosttap development"
+    dependsOn build
+
+    from "build/libs"
+    into prismDevMods
+    include "GhostTap-${project.version}.jar"
+
+    doFirst {
+        prismDevMods.mkdirs()
+        fileTree(prismDevMods).matching { include "GhostTap*.jar" }.each { oldJar ->
+            if (oldJar.name != "GhostTap-${project.version}.jar") {
+                def disabledJar = new File(oldJar.parentFile, oldJar.name + ".disabled")
+                if (disabledJar.exists()) {
+                    disabledJar.delete()
+                }
+                if (!oldJar.renameTo(disabledJar)) {
+                    throw new GradleException("Could not disable stale GhostTap jar: ${oldJar}")
+                }
+            }
+        }
+    }
+}
+
+task runPvpClient {
+    description = "Builds GhostTap and launches the isolated 1.8.9-dev Prism instance."
+    group = "ghosttap development"
+    dependsOn copyModToPrismDev
+
+    doLast {
+        if (!prismLauncher.isFile()) {
+            throw new GradleException("Prism Launcher not found: ${prismLauncher}. Set PRISM_LAUNCHER to its executable path.")
+        }
+        // Ant's spawn mode closes Gradle's redirected stdio handles. A raw
+        // ProcessBuilder leaves Prism attached to the daemon and it stalls
+        // before launching Minecraft.
+        ant.exec(executable: prismLauncher.absolutePath, spawn: true) {
+            arg(value: "--launch")
+            arg(value: "1.8.9-dev")
+        }
+    }
+}
+
 // The dev client only discovers @Mods (and reads the Mixin manifest) from run/mods,
 // so build + drop the jar there before launching. FML remaps it for the dev env.
 afterEvaluate {

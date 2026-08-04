@@ -33,7 +33,13 @@ public final class SprintResetTracker {
     }
 
     public long triggered() {
-        return history.stream().filter(d -> d.outcome == SprintResetData.Outcome.TRIGGERED).count();
+        return history.stream().filter(d -> d.outcome == SprintResetData.Outcome.TRIGGERED
+                || d.outcome == SprintResetData.Outcome.INTERRUPTED_INCOMING_HIT).count();
+    }
+
+    public long incomingInterrupted() {
+        return history.stream().filter(d ->
+                d.outcome == SprintResetData.Outcome.INTERRUPTED_INCOMING_HIT).count();
     }
 
     public long expired() {

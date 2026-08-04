@@ -36,8 +36,17 @@ public final class JumpResetTracker {
         return history.stream().filter(d -> d.outcome == JumpResetData.Outcome.TRIGGERED).count();
     }
 
-    public long applied() {
-        return history.stream().filter(d -> d.jumpApplied).count();
+    public long sameTick() {
+        return history.stream().filter(d -> d.inputTickOffset == 0).count();
+    }
+
+    public long observedPresses() {
+        return history.stream().filter(d -> d.inputTickOffset >= 0).count();
+    }
+
+    public double sameTickPercent() {
+        long observed = observedPresses();
+        return observed == 0 ? 0 : sameTick() * 100.0 / observed;
     }
 
     public double averagePressDelayMs() {

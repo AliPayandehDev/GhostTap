@@ -19,6 +19,7 @@ public final class SprintResetData {
         SKIP_CHANCE,
         SKIP_ALREADY_QUEUED,
         SKIP_KEY_STATE,
+        INTERRUPTED_INCOMING_HIT,
         CANCELLED
     }
 
@@ -47,18 +48,14 @@ public final class SprintResetData {
     public volatile String confirmationSource = "NONE";
     public volatile double confirmedGap = Double.NaN;
     public volatile double confirmedClosingSpeed = Double.NaN;
-    public volatile double projectedGap = Double.NaN;
-    public volatile double finalGap = Double.NaN;
     public volatile long actionDelayNanos = -1;
     public volatile double baseDurationTicks = -1;
     public volatile double durationMultiplier = -1;
     public volatile int targetDurationTicks = -1;
     public volatile long actualDurationNanos = -1;
     public volatile boolean backstep;
-    public volatile int jumpDeferrals;
-    public volatile boolean sprintAtActionStart;
-    public volatile boolean sprintStoppedDuringAction;
-    public volatile boolean sprintAfterRestore;
+    public volatile boolean automaticBackstep;
+    public volatile int comboStreakBefore = -1;
 
     public SprintResetData(long timestamp, Outcome outcome, SprintResetMode mode,
                            long decisionNanos, long scheduledDelayMs,
@@ -83,32 +80,28 @@ public final class SprintResetData {
 
     public void markConfirmed(long nowNanos, long attackNanos, String confirmationSource,
                               double confirmedGap, double confirmedClosingSpeed,
-                              double projectedGap, boolean backstep) {
+                              boolean backstep, boolean automaticBackstep,
+                              int comboStreakBefore) {
         outcome = Outcome.TRIGGERED;
         confirmationDelayNanos = Math.max(0, nowNanos - attackNanos);
         this.confirmationSource = confirmationSource;
         this.confirmedGap = confirmedGap;
         this.confirmedClosingSpeed = confirmedClosingSpeed;
-        this.projectedGap = projectedGap;
         this.backstep = backstep;
+        this.automaticBackstep = automaticBackstep;
+        this.comboStreakBefore = comboStreakBefore;
     }
 
     public void markStarted(long nowNanos, long attackNanos,
                             double baseDurationTicks, double durationMultiplier,
-                            int targetDurationTicks, boolean sprintAtActionStart) {
+                            int targetDurationTicks) {
         actionDelayNanos = Math.max(0, nowNanos - attackNanos);
         this.baseDurationTicks = baseDurationTicks;
         this.durationMultiplier = durationMultiplier;
         this.targetDurationTicks = targetDurationTicks;
-        this.sprintAtActionStart = sprintAtActionStart;
     }
 
-    public void markEnded(long durationNanos, double finalGap) {
+    public void markEnded(long durationNanos) {
         actualDurationNanos = Math.max(0, durationNanos);
-        this.finalGap = finalGap;
-    }
-
-    public void markJumpDeferred() {
-        jumpDeferrals++;
     }
 }

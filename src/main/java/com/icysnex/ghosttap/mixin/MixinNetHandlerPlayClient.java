@@ -1,6 +1,7 @@
 package com.icysnex.ghosttap.mixin;
 
 import com.icysnex.ghosttap.core.jump.AutoJumpReset;
+import com.icysnex.ghosttap.core.analytics.Tracker;
 import com.icysnex.ghosttap.core.sprintreset.AutoSprintReset;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
@@ -29,8 +30,10 @@ public abstract class MixinNetHandlerPlayClient {
         EntityPlayerSP player = mc.thePlayer;
         if (player != null && mc.theWorld != null) {
             Entity hurtEntity = packet.getEntity(mc.theWorld);
-            if (hurtEntity == player)
+            if (hurtEntity == player) {
                 AutoJumpReset.INSTANCE.onLocalHurtStatus();
+                AutoSprintReset.INSTANCE.onLocalIncomingHit();
+            }
             AutoSprintReset.INSTANCE.onTargetHurtStatus(hurtEntity);
         }
     }
@@ -41,7 +44,8 @@ public abstract class MixinNetHandlerPlayClient {
         EntityPlayerSP player = mc.thePlayer;
         AutoSprintReset.INSTANCE.onTargetVelocity(packet.getEntityID());
         if (player != null && packet.getEntityID() == player.getEntityId()) {
-            long velocityNanos = System.nanoTime();
+            AutoSprintReset.INSTANCE.onLocalIncomingHit();
+            long velocityNanos = Tracker.enabled ? System.nanoTime() : -1;
             AutoJumpReset.INSTANCE.onLocalVelocity(player, mc.currentScreen != null,
                     packet.getMotionX(), packet.getMotionY(), packet.getMotionZ(), velocityNanos);
         }

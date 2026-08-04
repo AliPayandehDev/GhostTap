@@ -74,38 +74,31 @@ public class Analytics {
         FileIO.saveAsync(fileName, writer -> {
             writer.println("# --- START METADATA (JUMP RESET) ---");
             writer.printf(Locale.ROOT, "# Chance: %.1f%%%n", jumpReset.chance * 100);
-            writer.printf(Locale.ROOT, "# Hold: %.1fms (variation: %.1f, range %.1f-%.1f)%n",
+            writer.printf(Locale.ROOT, "# Delay: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
+                    jumpReset.delayMeanMs, jumpReset.delayStandardDeviationMs,
+                    jumpReset.delayMinMs, jumpReset.delayMaxMs);
+            writer.printf(Locale.ROOT, "# Hold: %.1fms (SD: %.1f, Range %.1f-%.1f)%n",
                     jumpReset.holdMeanMs, jumpReset.holdStandardDeviationMs,
                     jumpReset.holdMinMs, jumpReset.holdMaxMs);
-            writer.println("# Timing: next movement boundary; every press crosses at least one movement sample");
-            writer.printf(Locale.ROOT, "# Minimum horizontal velocity: %.3f blocks/tick%n",
-                    jumpReset.minimumHorizontalVelocity);
             writer.printf("# Filters: ground=%s, sprinting=%s, forward=%s, menus=%s%n",
                     jumpReset.onGroundOnly, jumpReset.sprintingOnly,
                     jumpReset.forwardOnly, jumpReset.allowInMenu);
-            writer.println("# Environment guards: flying, riding, water, lava and ladders");
-            writer.println("# Negative timing values mean that stage was not reached or observed before export.");
+            writer.println("# Negative timing/tick values mean that stage was not reached or observed before export.");
             writer.println("# --- END METADATA ---");
 
-            writer.println("Timestamp,Outcome,HurtToVelocityMS,DecisionUS,ActualPressDelayMS,TargetHoldMS,ActualHoldMS,JumpApplied,JumpDelayMS,SprintResetDeferred,OnGround,Sprinting,MovingForward,ScreenOpen,PhysicalJumpDown,Environment,JumpKey,VelocityX,VelocityY,VelocityZ,HorizontalVelocity,PreMotionX,PreMotionY,PreMotionZ,JumpMotionX,JumpMotionY,JumpMotionZ,EndMotionX,EndMotionY,EndMotionZ");
+            writer.println("Timestamp,Outcome,HurtToVelocityMS,DecisionUS,ScheduledDelayMS,ActualPressDelayMS,HitInputTick,PressInputTick,InputTickOffset,TargetHoldMS,ActualHoldMS,OnGround,Sprinting,MovingForward,ScreenOpen,PhysicalSpaceDown,VelocityX,VelocityY,VelocityZ,HorizontalVelocity");
             for (JumpResetData d : snapshot) {
                 double velocityX = d.velocityX / 8000.0;
                 double velocityY = d.velocityY / 8000.0;
                 double velocityZ = d.velocityZ / 8000.0;
                 double horizontal = Math.sqrt(velocityX * velocityX + velocityZ * velocityZ);
                 writer.printf(Locale.ROOT,
-                        "%d,%s,%.4f,%.3f,%.4f,%d,%.4f,%s,%.4f,%s,%s,%s,%s,%s,%s,%s,%d,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f%n",
-                        d.timestamp, d.outcome.name(),
-                        nanosToMs(d.hurtToVelocityNanos),
-                        nanosToUs(d.decisionNanos), nanosToMs(d.pressNanos),
-                        d.targetHoldMs, nanosToMs(d.actualHoldNanos), d.jumpApplied,
-                        nanosToMs(d.jumpNanos),
-                        d.sprintResetDeferred, d.onGround, d.sprinting, d.movingForward,
-                        d.screenOpen, d.physicalJumpDown, d.environment, d.jumpKey,
-                        velocityX, velocityY, velocityZ, horizontal,
-                        d.preMotionX, d.preMotionY, d.preMotionZ,
-                        d.jumpMotionX, d.jumpMotionY, d.jumpMotionZ,
-                        d.endMotionX, d.endMotionY, d.endMotionZ);
+                        "%d,%s,%.4f,%.3f,%d,%.4f,%d,%d,%d,%d,%.4f,%s,%s,%s,%s,%s,%.5f,%.5f,%.5f,%.5f%n",
+                        d.timestamp, d.outcome.name(), nanosToMs(d.hurtToVelocityNanos),
+                        nanosToUs(d.decisionNanos), d.scheduledDelayMs, nanosToMs(d.pressNanos),
+                        d.hitInputTick, d.pressInputTick, d.inputTickOffset, d.targetHoldMs,
+                        nanosToMs(d.actualHoldNanos), d.onGround, d.sprinting, d.movingForward,
+                        d.screenOpen, d.physicalSpaceDown, velocityX, velocityY, velocityZ, horizontal);
             }
         }, success -> {
             if (success)
@@ -136,13 +129,13 @@ public class Analytics {
             writer.printf(Locale.ROOT, "# Tap duration: mean=%.2ft, variation=%.2ft, min=%.1ft, max=%.1ft%n",
                     sprintReset.durationMeanTicks, sprintReset.durationStandardDeviationTicks,
                     sprintReset.durationMinTicks, sprintReset.durationMaxTicks);
-            writer.printf(Locale.ROOT, "# Duration adaptation: strength=%.1f%%, close multiplier=%.1f%%; never shortens the baseline%n",
+            writer.printf(Locale.ROOT, "# W-release duration adaptation: strength=%.1f%%, close multiplier=%.1f%%; S/Shift are not multiplied%n",
                     sprintReset.durationAdaptiveness * 100,
                     sprintReset.durationCloseMultiplier * 100);
-            writer.printf(Locale.ROOT, "# Spacing assist: enabled=%s, desired horizontal hitbox gap=%.2f%n",
-                    sprintReset.spacingAssist, sprintReset.spacingGap);
-            writer.println("# Spacing prediction: one movement tick using relative closing speed");
-            writer.println("# Trigger policy: matching server target-hurt status; target hurtTime gates repeated attempts");
+            writer.printf(Locale.ROOT, "# Spacing assist: enabled=%s, comboOnly=%s, desired horizontal hitbox gap=%.2f%n",
+                    sprintReset.spacingAssist, sprintReset.spacingComboOnly,
+                    sprintReset.spacingGap);
+            writer.println("# Trigger policy: one action per matching server target-hurt confirmation; duplicate confirmation signals are deduplicated");
             writer.println("# Sprint key: untouched");
             writer.printf("# Held items: weapons=%s, tools=%s, blocks=%s, other=%s%n",
                     sprintReset.weapons, sprintReset.tools, sprintReset.blocks, sprintReset.other);
@@ -150,23 +143,21 @@ public class Analytics {
             writer.println("# Negative timing values mean that stage was not reached or observed before export.");
             writer.println("# --- END METADATA ---");
 
-            writer.println("Timestamp,Outcome,Mode,DecisionUS,ScheduledDelayMS,ConfirmationSource,ConfirmationDelayMS,ActualActionDelayMS,BaseDurationTicks,DurationMultiplier,TargetDurationTicks,ActualDurationMS,Backstep,JumpDeferrals,SprintAtActionStart,SprintStoppedDuringAction,SprintAfterRestore,Sprinting,MovingForward,PhysicalActionDown,PlayerTarget,HeldItem,AttackGap,AttackClosingSpeed,ConfirmedGap,ConfirmedClosingSpeed,ProjectedGap,FinalGap,TargetHurtTime");
+            writer.println("Timestamp,Outcome,Mode,DecisionUS,ScheduledDelayMS,ConfirmationSource,ConfirmationDelayMS,ActualActionDelayMS,BaseDurationTicks,DurationMultiplier,TargetDurationTicks,ActualDurationMS,Backstep,AutomaticBackstep,ComboStreakBefore,Sprinting,MovingForward,PhysicalActionDown,PlayerTarget,HeldItem,AttackGap,AttackClosingSpeed,ConfirmedGap,ConfirmedClosingSpeed,TargetHurtTime");
             for (SprintResetData d : snapshot) {
                 writer.printf(Locale.ROOT,
-                        "%d,%s,%s,%.3f,%d,%s,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%.4f,%.6f,%.4f,%.6f,%.4f,%.4f,%d%n",
+                        "%d,%s,%s,%.3f,%d,%s,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%s,%s,%d,%s,%s,%s,%s,%s,%.4f,%.6f,%.4f,%.6f,%d%n",
                         d.timestamp, d.outcome.name(), d.mode.name(), nanosToUs(d.decisionNanos),
                         d.scheduledDelayMs, d.confirmationSource,
                         nanosToMs(d.confirmationDelayNanos),
                         nanosToMs(d.actionDelayNanos), d.baseDurationTicks,
                         d.durationMultiplier, d.targetDurationTicks,
-                        nanosToMs(d.actualDurationNanos), d.backstep, d.jumpDeferrals,
-                        d.sprintAtActionStart, d.sprintStoppedDuringAction,
-                        d.sprintAfterRestore,
+                        nanosToMs(d.actualDurationNanos), d.backstep,
+                        d.automaticBackstep, d.comboStreakBefore,
                         d.sprinting, d.movingForward, d.physicalActionDown,
                         d.playerTarget, d.heldItem.name(), d.attackGap,
                         d.attackClosingSpeed, d.confirmedGap,
-                        d.confirmedClosingSpeed, d.projectedGap, d.finalGap,
-                        d.targetHurtTime);
+                        d.confirmedClosingSpeed, d.targetHurtTime);
             }
         }, success -> {
             if (success)
