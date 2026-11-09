@@ -46,11 +46,23 @@ dependencies {
     }
 }
 
+// Keep annotation-processor output separate from processResources, which owns
+// (and may clean) build/resources/main. Include it in both the runtime and jar.
+def mixinRefmap = file("$buildDir/generated/mixin/mixin.ghosttap.refmap.json")
+sourceSets.main.output.dir([builtBy: 'compileJava'], mixinRefmap.parentFile)
+
+compileJava {
+    outputs.file mixinRefmap
+    doFirst {
+        mixinRefmap.parentFile.mkdirs()
+    }
+}
+
 afterEvaluate {
     tasks.compileJava.dependsOn 'genSrgs'
     tasks.compileJava.options.compilerArgs += [
             "-AreobfSrgFile=${tasks.genSrgs.mcpToSrg.canonicalPath}",
-            "-AoutRefMapFile=${new File(sourceSets.main.output.resourcesDir, 'mixin.ghosttap.refmap.json').canonicalPath}"
+            "-AoutRefMapFile=${mixinRefmap.canonicalPath}"
     ]
 }
 
@@ -69,6 +81,13 @@ processResources {
 }
 
 jar {
+    doFirst {
+        if (!mixinRefmap.isFile() ||
+                !new groovy.json.JsonSlurper().parse(mixinRefmap).mappings) {
+            throw new GradleException("Missing or empty Mixin refmap. Run clean build with JDK 8.")
+        }
+    }
+
     from {
         configurations.compile.findAll { it.name.contains('mixin') }.collect { zipTree(it) }
     }
