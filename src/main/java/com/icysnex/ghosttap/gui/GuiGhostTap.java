@@ -160,16 +160,16 @@ public class GuiGhostTap extends GuiScreen {
         r.add("CPS");
         // Mean widens the range if dragged past Min/Max; Min/Max also push Mean
         // back in — the relationship is kept from both sides.
-        r.add(slider("Mean", 1, 30, 1, false,
+        r.add(slider("Mean", 1, 100, 1, false,
                 "Average click speed.",
                 () -> c.cpsMean, v -> { c.cpsMean = v; if (v < c.cpsMin) c.cpsMin = v; if (v > c.cpsMax) c.cpsMax = v; }));
         r.add(slider("Std deviation", 0, 6, 2, false,
                 "How much the speed randomly varies around the Mean.\nHigher = more human, less consistent.",
                 () -> c.cpsStandardDeviation, v -> c.cpsStandardDeviation = v));
-        r.add(slider("Min", 1, 30, 1, false,
+        r.add(slider("Min", 1, 100, 1, false,
                 "Lowest allowed click speed.",
                 () -> c.cpsMin, v -> { c.cpsMin = v; if (c.cpsMax < v) c.cpsMax = v; if (c.cpsMean < v) c.cpsMean = v; }));
-        r.add(slider("Max", 1, 30, 1, false,
+        r.add(slider("Max", 1, 100, 1, false,
                 "Highest allowed click speed.",
                 () -> c.cpsMax, v -> { c.cpsMax = v; if (c.cpsMin > v) c.cpsMin = v; if (c.cpsMean > v) c.cpsMean = v; }));
         r.add(slider("Min/Max fallout", 0, 3, 2, false,
